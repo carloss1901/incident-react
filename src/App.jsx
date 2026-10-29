@@ -69,6 +69,17 @@ function normalizePriority(priority) {
   return value.charAt(0) + value.slice(1).toLowerCase();
 }
 
+const STATUS_LABELS = { Active: 'Activo', Inactive: 'Inactivo' };
+const PRIORITY_LABELS = { High: 'Alta', Medium: 'Media', Low: 'Baja' };
+
+function statusLabel(status) {
+  return STATUS_LABELS[status] || status || '—';
+}
+
+function priorityLabel(priority) {
+  return PRIORITY_LABELS[priority] || priority || '—';
+}
+
 export default function App() {
   // Estado principal
   const [incidents, setIncidents] = useState([]);
@@ -322,7 +333,7 @@ export default function App() {
         setUsersError('Sesión sin token válido. Vuelve a iniciar sesión como ADMIN para administrar usuarios.');
       } else if (err.status === 404 || err.status === 405) {
         setUsersAvailable(false);
-        setUsersError('El backend aún no expone GET /api/users.');
+        setUsersError('La gestión de usuarios no está disponible en este momento.');
       } else {
         setUsersError(err.message || 'No se pudo obtener el listado de usuarios.');
       }
@@ -350,7 +361,7 @@ export default function App() {
         ? { ...item, ...(updated && typeof updated === 'object' ? updated : {}), role: (updated && updated.role) || role }
         : item)));
       const label = target.name || target.username || `#${target.id}`;
-      triggerToast('Rol Actualizado', `PATCH /api/users/${target.id}/role • ${label} → ${ROLE_LABELS[role] || role}`);
+      triggerToast('Rol Actualizado', `El rol de ${label} ahora es ${ROLE_LABELS[role] || role}.`);
       if (target.username && user && target.username === user.username) {
         setUser(prev => (prev ? { ...prev, role } : prev));
         localStorage.setItem('utp_auth_user', JSON.stringify({ ...user, role }));
@@ -358,7 +369,7 @@ export default function App() {
     } catch (err) {
       if (err.status === 404 || err.status === 405) {
         setUsersAvailable(false);
-        setUsersError('El backend aún no expone PATCH /api/users/{id}/role.');
+        setUsersError('La actualización de roles no está disponible en este momento.');
       }
       triggerToast('Error al Actualizar Rol', err.message, false);
     } finally {
@@ -421,7 +432,7 @@ export default function App() {
       if (resolvedId) {
         setPasswordTarget(prev => (prev ? { ...prev, id: resolvedId } : prev));
       } else {
-        setPasswordInfo('No pudimos obtener tu ID de usuario desde la sesión. Ingrésalo abajo (el administrador puede verlo en la vista Usuarios) o pide que el backend incluya "id" en /api/auth/login y /api/auth/me.');
+        setPasswordInfo('No pudimos obtener tu ID de usuario desde la sesión. Ingrésalo abajo; el administrador puede verlo en la vista Usuarios.');
       }
     }
   };
@@ -459,11 +470,11 @@ export default function App() {
       setShowPasswordModal(false);
       triggerToast(
         'Contraseña Actualizada',
-        `PATCH /api/users/${targetId}/password • ${username || 'usuario'}`
+        `La contraseña de ${username || 'usuario'} se actualizó correctamente.`
       );
     } catch (err) {
       if (err.status === 404 || err.status === 405) {
-        setPasswordError('El backend desplegado aún no expone PATCH /api/users/{id}/password.');
+        setPasswordError('El cambio de contraseña no está disponible en este momento.');
       } else {
         setPasswordError(err.message || 'No se pudo actualizar la contraseña.');
       }
@@ -478,13 +489,13 @@ export default function App() {
       triggerToast('Acción no permitida', 'No puedes eliminar tu propia cuenta.', false);
       return;
     }
-    if (!window.confirm(`¿Eliminar la cuenta ${target.username} (${target.name || 'sin nombre'})?\n\nEndpoint: DELETE /api/users/${target.id}`)) {
+    if (!window.confirm(`¿Eliminar la cuenta ${target.username} (${target.name || 'sin nombre'})?`)) {
       return;
     }
     try {
       await deleteUser(target.id);
       setUsers(prev => prev.filter(item => item.id !== target.id));
-      triggerToast('Usuario Eliminado', `DELETE /api/users/${target.id} • ${target.username}`);
+      triggerToast('Usuario Eliminado', `La cuenta ${target.username} fue eliminada correctamente.`);
     } catch (err) {
       triggerToast('Error al Eliminar Usuario', err.message, false);
     }
@@ -518,7 +529,7 @@ export default function App() {
       setUser(sessionUser);
       localStorage.setItem('utp_auth_user', JSON.stringify(sessionUser));
       setShowLoginModal(false);
-      triggerToast('Sesión Iniciada', `Bienvenido ${sessionUser.name} (${sessionUser.role})`);
+      triggerToast('Sesión Iniciada', `Bienvenido ${sessionUser.name} (${ROLE_LABELS[String(sessionUser.role || '').toUpperCase()] || sessionUser.role})`);
       loadData();
     } catch (err) {
       setLoginError(err.message || 'Usuario o contraseña inválidos');
@@ -542,13 +553,13 @@ export default function App() {
       if (isAdmin) {
         // Un administrador registra cuentas para terceros: permanece en la vista Usuarios.
         setShowRegisterModal(false);
-        triggerToast('Usuario Registrado', `POST /api/users • ${username} (${ROLE_LABELS[String(created.role || 'OPERATOR').toUpperCase()] || created.role || 'Operador'})`);
+        triggerToast('Usuario Registrado', `La cuenta ${username} fue creada con el rol ${ROLE_LABELS[String(created.role || 'OPERATOR').toUpperCase()] || created.role || 'Operador'}.`);
         if (usersAvailable) loadUsers();
       } else {
         setLoginForm({ username, password: registerForm.password });
         setShowRegisterModal(false);
         setShowLoginModal(true);
-        triggerToast('Usuario Registrado', `POST /api/users • ${username} (${ROLE_LABELS[String(created.role || 'OPERATOR').toUpperCase()] || created.role || 'Operador'})`);
+        triggerToast('Usuario Registrado', `La cuenta ${username} fue creada con el rol ${ROLE_LABELS[String(created.role || 'OPERATOR').toUpperCase()] || created.role || 'Operador'}.`);
       }
     } catch (err) {
       setRegisterError(err.message || 'No se pudo registrar el usuario');
@@ -629,7 +640,7 @@ export default function App() {
         status: 'Active',
         location: 'Lima Centro - Torre Tecnológica',
       });
-      triggerToast('POST /api/incidents Exitoso', `Ticket #${created.ticketCode || created.id} registrado correctamente.`);
+      triggerToast('Incidente Registrado', `El ticket ${created.ticketCode || created.id} se registró correctamente.`);
       loadData();
     } catch (err) {
       triggerToast('Error al Crear', err.message, false);
@@ -651,7 +662,7 @@ export default function App() {
   const handlePatchSubmit = async (e) => {
     e.preventDefault();
     if (!patchStatusData.id) {
-      triggerToast('Error en PATCH', 'No se seleccionó un incidente válido.', false);
+      triggerToast('Error al Actualizar', 'No se seleccionó un incidente válido.', false);
       return;
     }
     try {
@@ -660,16 +671,16 @@ export default function App() {
         updateIncidentPriority(patchStatusData.id, patchStatusData.priority),
       ]);
       setShowStatusModal(false);
-      triggerToast('Incidente Actualizado', `PATCH /api/incidents/${patchStatusData.id}/status y /priority completados.`);
+      triggerToast('Incidente Actualizado', 'El estado y la prioridad del incidente se actualizaron correctamente.');
       loadData();
     } catch (err) {
-      triggerToast('Error en PATCH', err.message, false);
+      triggerToast('Error al Actualizar', err.message, false);
     }
   };
 
   // Manejo de Eliminación (DELETE)
   const handleDelete = async (id, ticketCode, title) => {
-    if (!window.confirm(`¿Confirmar eliminación del incidente ${ticketCode} (${title})?\n\nEndpoint: DELETE /api/incidents/${id}`)) {
+    if (!window.confirm(`¿Confirmar eliminación del incidente ${ticketCode} (${title})?`)) {
       return;
     }
     try {
@@ -864,26 +875,23 @@ export default function App() {
               <div className="flex items-center gap-2 text-xs text-on-surface-variant">
                 <span className="flex items-center gap-1 font-semibold text-primary">
                   <span className="material-symbols-outlined text-sm">terminal</span>
-                  incident-controller
+                  Incidentes
                 </span>
                 <span>/</span>
                 <span className="text-on-surface font-medium">Mesa Operativa Campus</span>
-                <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-[11px] font-mono text-on-surface">
-                  /api/incidents
-                </span>
               </div>
 
               <div className="flex items-center gap-2">
                 <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${isOnline ? 'bg-emerald-500/10 text-emerald-700' : 'bg-red-500/10 text-red-700'}`}>
                   <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-ping' : 'bg-red-500'}`}></span>
-                  <span>{isOnline ? 'REST API Conectada • OAS 3.0' : 'Desconectado del Servidor'}</span>
+                  <span>{isOnline ? 'Servicio en línea' : 'Servicio desconectado'}</span>
                 </div>
                 <button
                   onClick={() => setShowDocsModal(true)}
                   className="flex items-center gap-1 px-3 py-1 rounded-lg bg-surface-container-lowest text-on-surface-variant hover:text-primary shadow-sm hover:shadow transition text-xs font-semibold"
                 >
                   <span className="material-symbols-outlined text-sm">code</span>
-                  <span>APIs &amp; Docs</span>
+                  <span>Documentación</span>
                 </button>
               </div>
             </div>
@@ -898,11 +906,11 @@ export default function App() {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="font-display text-3xl text-on-surface font-bold">{stats.total || incidents.length}</span>
-                  <span className="text-xs text-emerald-600 font-medium">GET /api/incidents/stats</span>
+                  <span className="text-xs text-emerald-600 font-medium">Métricas actualizadas</span>
                 </div>
                 <div className="mt-2 text-xs text-on-surface-variant flex items-center justify-between">
-                  <span>Sincronizado con BD</span>
-                  <span className="font-semibold text-on-surface">SQLite / JPA</span>
+                  <span>Sincronizado con la base de datos</span>
+                  <span className="font-semibold text-on-surface">En línea</span>
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-tertiary to-tertiary-container"></div>
               </div>
@@ -915,7 +923,7 @@ export default function App() {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="font-display text-3xl text-emerald-700 font-bold">{stats.active || 0}</span>
-                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-xs font-bold">Active</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-xs font-bold">Activo</span>
                 </div>
                 <div className="mt-2 text-xs text-on-surface-variant flex items-center justify-between">
                   <span>Requieren acción técnica</span>
@@ -934,7 +942,7 @@ export default function App() {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="font-display text-3xl text-on-surface font-bold">{stats.inactive || 0}</span>
-                  <span className="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant text-xs font-bold">Inactive</span>
+                  <span className="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant text-xs font-bold">Inactivo</span>
                 </div>
                 <div className="mt-2 text-xs text-on-surface-variant flex items-center justify-between">
                   <span>Tickets solucionados</span>
@@ -948,7 +956,7 @@ export default function App() {
               {/* Critical / High Priority */}
               <div className="relative overflow-hidden rounded-xl bg-surface-container-lowest p-4 shadow-sm border border-surface-container">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Prioridad Alta (High)</span>
+                  <span className="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Prioridad Alta</span>
                   <span className="p-1 rounded-lg bg-red-100 text-primary material-symbols-outlined text-base">warning</span>
                 </div>
                 <div className="flex items-baseline gap-2">
@@ -982,11 +990,11 @@ export default function App() {
               </div>
             </div>
 
-            {/* Interactive Category Pills Bar (GET /api/incidents/stats/by-category) */}
+            {/* Interactive Category Pills Bar */}
             <div className="mt-4 p-3 rounded-xl bg-surface-container-lowest border border-surface-container flex flex-wrap items-center justify-between gap-3 shadow-sm">
               <div className="flex items-center gap-2 text-xs font-semibold text-on-surface-variant">
                 <span className="material-symbols-outlined text-sm text-primary">category</span>
-                <span>Métricas por Categoría (GET /api/incidents/stats/by-category):</span>
+                <span>Métricas por Categoría:</span>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {Object.entries(stats.byCategory || {}).map(([cat, count]) => (
@@ -1069,9 +1077,9 @@ export default function App() {
                   className="w-full sm:w-auto bg-surface-container-low text-xs text-on-surface px-3 py-2 rounded-lg focus:outline-none cursor-pointer border border-surface-container"
                 >
                   <option value="ALL">Todas las Prioridades</option>
-                  <option value="High">Alta (High)</option>
-                  <option value="Medium">Media (Medium)</option>
-                  <option value="Low">Baja (Low)</option>
+                  <option value="High">Alta</option>
+                  <option value="Medium">Media</option>
+                  <option value="Low">Baja</option>
                 </select>
               </div>
 
@@ -1152,10 +1160,10 @@ export default function App() {
                           <div className="flex items-center gap-1 shrink-0">
                             <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-surface-container text-on-surface-variant'}`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-600' : 'bg-outline'}`}></span>
-                              {isActive ? 'Active' : 'Inactive'}
+                              {statusLabel(item.status)}
                             </span>
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold text-white ${item.priority === 'High' ? 'bg-primary' : item.priority === 'Medium' ? 'bg-amber-500' : 'bg-sky-600'}`}>
-                              {item.priority}
+                              {priorityLabel(item.priority)}
                             </span>
                           </div>
                         </div>
@@ -1245,12 +1253,12 @@ export default function App() {
                           </td>
                           <td className="py-3 px-4">
                             <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-surface-container text-on-surface-variant'}`}>
-                              {isActive ? 'Active' : 'Inactive'}
+                              {statusLabel(item.status)}
                             </span>
                           </td>
                           <td className="py-3 px-4">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold text-white ${item.priority === 'High' ? 'bg-primary' : item.priority === 'Medium' ? 'bg-amber-500' : 'bg-sky-600'}`}>
-                              {item.priority}
+                              {priorityLabel(item.priority)}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-on-surface-variant text-xs max-w-xs truncate">{item.rejectionReason || '—'}</td>
@@ -1287,13 +1295,10 @@ export default function App() {
                 <div className="flex items-center gap-2 text-xs text-on-surface-variant">
                   <span className="flex items-center gap-1 font-semibold text-primary">
                     <span className="material-symbols-outlined text-sm">manage_accounts</span>
-                    auth-controller
+                    Usuarios
                   </span>
                   <span>/</span>
                   <span className="text-on-surface font-medium">Administración de Usuarios</span>
-                  <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-[11px] font-mono text-on-surface">
-                    /api/users
-                  </span>
                 </div>
                 {isAdmin && (
                   <div className="flex items-center gap-2">
@@ -1327,10 +1332,9 @@ export default function App() {
                     <div className="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2">
                       <span className="material-symbols-outlined text-amber-600 text-xl">warning</span>
                       <div>
-                        <p className="text-sm font-bold text-amber-800">Endpoints de usuarios no disponibles</p>
+                        <p className="text-sm font-bold text-amber-800">Gestión de usuarios no disponible</p>
                         <p className="text-xs text-amber-700 mt-1">
-                          La interfaz está lista, pero el backend debe exponer <code className="font-mono">GET /api/users</code> y{' '}
-                          <code className="font-mono">PATCH /api/users/{'{id}'}/role</code> para listar y guardar los cambios.
+                          La interfaz está lista, pero el servicio de usuarios no está disponible en este momento. Inténtalo más tarde.
                         </p>
                       </div>
                     </div>
@@ -1407,7 +1411,7 @@ export default function App() {
                                   <button
                                     onClick={() => handleOpenUserDetail(item)}
                                     className="font-bold text-on-surface hover:text-primary transition flex items-center gap-1.5"
-                                    title="Ver detalle (GET /api/users/{id})"
+                                    title="Ver detalle del usuario"
                                   >
                                     {item.username}
                                     {isSelf && <span className="px-1.5 py-0.5 rounded bg-surface-container text-[10px] font-semibold text-on-surface-variant">Tú</span>}
@@ -1474,7 +1478,7 @@ export default function App() {
                   </div>
 
                   <p className="text-[11px] text-on-surface-variant mt-3">
-                    Listado: <code className="font-mono">GET /api/users</code> · Actualización: <code className="font-mono">PATCH /api/users/{'{id}'}/role</code> con cuerpo <code className="font-mono">{'{ "role": "ADMIN | SUPERVISOR | OPERATOR | SUPPORT" }'}</code>.
+                    Los roles se actualizan al instante. Solo un administrador puede gestionar usuarios y roles.
                   </p>
                 </>
               )}
@@ -1507,7 +1511,7 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="font-headline-md text-lg text-on-surface font-bold">Mi Perfil</h2>
-                  <p className="text-xs text-on-surface-variant">GET /api/auth/me • Sesión activa</p>
+                  <p className="text-xs text-on-surface-variant">Sesión activa</p>
                 </div>
               </div>
               <button onClick={() => setShowProfileModal(false)} className="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant">
@@ -1599,7 +1603,7 @@ export default function App() {
                 <div>
                   <h2 className="font-headline-md text-lg text-on-surface font-bold">Cambiar contraseña</h2>
                   <p className="text-xs text-on-surface-variant">
-                    PATCH /api/users/{passwordTarget.id || '{id}'}/password • {passwordTarget.isSelf ? 'Mi cuenta' : passwordTarget.username}
+                    {passwordTarget.isSelf ? 'Mi cuenta' : passwordTarget.username}
                   </p>
                 </div>
               </div>
@@ -1707,7 +1711,7 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="font-headline-md text-lg text-on-surface font-bold">Autenticación UTP TI</h2>
-                  <p className="text-xs text-on-surface-variant">POST /api/auth/login • Mesa Operativa</p>
+                  <p className="text-xs text-on-surface-variant">Mesa Operativa</p>
                 </div>
               </div>
               <button onClick={() => setShowLoginModal(false)} className="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant">
@@ -1778,7 +1782,7 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="font-headline-md text-lg text-on-surface font-bold">Registrar Usuario TI</h2>
-                  <p className="text-xs text-on-surface-variant">POST /api/users • Mesa Operativa</p>
+                  <p className="text-xs text-on-surface-variant">Mesa Operativa</p>
                 </div>
               </div>
               <button onClick={() => setShowRegisterModal(false)} className="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant">
@@ -1868,7 +1872,7 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="font-headline-md text-lg text-on-surface font-bold">Registrar Incidente TI</h2>
-                  <p className="text-xs text-on-surface-variant">POST /api/incidents • Mesa de Servicio UTP</p>
+                  <p className="text-xs text-on-surface-variant">Mesa de Servicio UTP</p>
                 </div>
               </div>
               <button onClick={() => setShowCreateModal(false)} className="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant">
@@ -1925,9 +1929,9 @@ export default function App() {
                     onChange={(e) => setNewIncident({ ...newIncident, priority: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-surface-container focus:outline-none cursor-pointer"
                   >
-                    <option value="Low">Baja (Low) — por defecto</option>
-                    <option value="Medium">Media (Medium)</option>
-                    <option value="High">Alta (High)</option>
+                    <option value="Low">Baja — por defecto</option>
+                    <option value="Medium">Media</option>
+                    <option value="High">Alta</option>
                   </select>
                 </div>
 
@@ -1938,8 +1942,8 @@ export default function App() {
                     onChange={(e) => setNewIncident({ ...newIncident, status: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-surface-container focus:outline-none cursor-pointer"
                   >
-                    <option value="Active">Active (En atención)</option>
-                    <option value="Inactive">Inactive (Cerrado)</option>
+                    <option value="Active">Activo (En atención)</option>
+                    <option value="Inactive">Inactivo (Cerrado)</option>
                   </select>
                 </div>
               </div>
@@ -1956,7 +1960,7 @@ export default function App() {
 
               <div className="pt-3 border-t border-surface-container flex items-center justify-end gap-2">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-lg bg-primary hover:bg-primary-container text-white text-xs font-bold shadow-md transition">Enviar POST Ticket</button>
+                <button type="submit" className="px-5 py-2 rounded-lg bg-primary hover:bg-primary-container text-white text-xs font-bold shadow-md transition">Registrar Incidente</button>
               </div>
             </form>
           </div>
@@ -1974,7 +1978,7 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="font-headline-md text-base text-on-surface font-bold">Editar Incidente</h2>
-                  <p className="text-xs text-on-surface-variant">PATCH /api/incidents/{patchStatusData.id}/status + /priority • {patchStatusData.ticketCode}</p>
+                  <p className="text-xs text-on-surface-variant">Estado y prioridad • {patchStatusData.ticketCode}</p>
                 </div>
               </div>
               <button onClick={() => setShowStatusModal(false)} className="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant">
@@ -1996,7 +2000,7 @@ export default function App() {
                       className="accent-emerald-600"
                     />
                     <div className="flex flex-col">
-                      <span className="text-xs font-bold text-emerald-800">Active</span>
+                      <span className="text-xs font-bold text-emerald-800">Activo</span>
                       <span className="text-[11px] text-on-surface-variant">En curso / Atención</span>
                     </div>
                   </label>
@@ -2010,7 +2014,7 @@ export default function App() {
                       className="accent-slate-700"
                     />
                     <div className="flex flex-col">
-                      <span className="text-xs font-bold text-slate-800">Inactive</span>
+                      <span className="text-xs font-bold text-slate-800">Inactivo</span>
                       <span className="text-[11px] text-on-surface-variant">Solucionado / Cerrado</span>
                     </div>
                   </label>
@@ -2021,9 +2025,9 @@ export default function App() {
                 <span className="block text-xs font-semibold text-on-surface mb-2">Prioridad del Incidente:</span>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
-                    { value: 'High', label: 'Alta', hint: 'High', active: 'bg-rose-500/10 border-rose-500', dot: 'bg-rose-600' },
-                    { value: 'Medium', label: 'Media', hint: 'Medium', active: 'bg-amber-500/10 border-amber-500', dot: 'bg-amber-500' },
-                    { value: 'Low', label: 'Baja', hint: 'Low', active: 'bg-sky-500/10 border-sky-500', dot: 'bg-sky-600' },
+                    { value: 'High', label: 'Alta', hint: 'Atención inmediata', active: 'bg-rose-500/10 border-rose-500', dot: 'bg-rose-600' },
+                    { value: 'Medium', label: 'Media', hint: 'Atención normal', active: 'bg-amber-500/10 border-amber-500', dot: 'bg-amber-500' },
+                    { value: 'Low', label: 'Baja', hint: 'Puede esperar', active: 'bg-sky-500/10 border-sky-500', dot: 'bg-sky-600' },
                   ].map(option => (
                     <label
                       key={option.value}
@@ -2047,7 +2051,7 @@ export default function App() {
                     </label>
                   ))}
                 </div>
-                <p className="text-[11px] text-on-surface-variant mt-1.5">Valor por defecto: Baja (Low).</p>
+                <p className="text-[11px] text-on-surface-variant mt-1.5">Valor por defecto: Baja.</p>
               </div>
 
               <div>
@@ -2081,7 +2085,7 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="font-headline-md text-base text-on-surface font-bold">{selectedIncident.ticketCode} (ID: {selectedIncident.id})</h2>
-                  <p className="text-xs text-on-surface-variant">Detalle inspeccionado vía GET /api/incidents/{selectedIncident.id}</p>
+                  <p className="text-xs text-on-surface-variant">Detalle del incidente</p>
                 </div>
               </div>
               <button onClick={() => setShowDetailModal(false)} className="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant">
@@ -2112,16 +2116,16 @@ export default function App() {
                 <div>
                   <span className="text-[11px] uppercase text-on-surface-variant font-semibold">Estado</span>
                   <div className="mt-1">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
-                      {selectedIncident.status}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${selectedIncident.status === 'Active' ? 'bg-emerald-100 text-emerald-800' : 'bg-surface-container text-on-surface-variant'}`}>
+                      {statusLabel(selectedIncident.status)}
                     </span>
                   </div>
                 </div>
                 <div>
                   <span className="text-[11px] uppercase text-on-surface-variant font-semibold">Prioridad</span>
                   <div className="mt-1">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-primary text-white">
-                      {selectedIncident.priority}
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold text-white ${selectedIncident.priority === 'High' ? 'bg-primary' : selectedIncident.priority === 'Medium' ? 'bg-amber-500' : 'bg-sky-600'}`}>
+                      {priorityLabel(selectedIncident.priority)}
                     </span>
                   </div>
                 </div>
@@ -2158,7 +2162,7 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="font-headline-md text-base text-on-surface font-bold">{selectedUser.username}</h2>
-                  <p className="text-xs text-on-surface-variant">GET /api/users/{selectedUser.id}</p>
+                  <p className="text-xs text-on-surface-variant">Información del usuario</p>
                 </div>
               </div>
               <button onClick={() => setShowUserModal(false)} className="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant">
@@ -2223,8 +2227,8 @@ export default function App() {
                   <span className="material-symbols-outlined text-xl">api</span>
                 </div>
                 <div>
-                  <h2 className="font-headline-md text-base text-on-surface font-bold">Catálogo de Endpoints REST UTP</h2>
-                  <p className="text-xs text-on-surface-variant">Spring Boot 3 + OpenAPI 3.0</p>
+                  <h2 className="font-headline-md text-base text-on-surface font-bold">Documentación de la API</h2>
+                  <p className="text-xs text-on-surface-variant">Referencia de servicios disponibles</p>
                 </div>
               </div>
               <button onClick={() => setShowDocsModal(false)} className="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant">
@@ -2392,7 +2396,7 @@ export default function App() {
                   <code className="font-mono text-xs font-bold text-on-surface">/api/incidents/{'{id}'}/status</code>
                   <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
                 </div>
-                <p className="text-xs text-on-surface-variant mt-1">Actualiza estado (Active / Inactive) y notas de rechazo o resolución.</p>
+                <p className="text-xs text-on-surface-variant mt-1">Actualiza el estado (Activo / Inactivo) y las notas de rechazo o resolución.</p>
               </div>
 
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
@@ -2401,7 +2405,7 @@ export default function App() {
                   <code className="font-mono text-xs font-bold text-on-surface">/api/incidents/{'{id}'}/priority</code>
                   <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
                 </div>
-                <p className="text-xs text-on-surface-variant mt-1">Actualiza la prioridad del incidente (High / Medium / Low). Solo administrador.</p>
+                <p className="text-xs text-on-surface-variant mt-1">Actualiza la prioridad del incidente (Alta / Media / Baja). Solo administrador.</p>
               </div>
 
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
@@ -2479,7 +2483,7 @@ export default function App() {
             <span>Soporte NOC Campus</span>
             <span>•</span>
             <span className={`font-mono font-semibold ${isOnline ? 'text-emerald-600' : 'text-error'}`}>
-              {isOnline ? `Online: ${currentHost.replace(/^https?:\/\//, '')}` : 'Desconectado'}
+              {isOnline ? `En línea: ${currentHost.replace(/^https?:\/\//, '')}` : 'Desconectado'}
             </span>
           </div>
         </div>
