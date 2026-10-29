@@ -15,6 +15,7 @@ import {
   logoutUser,
   getCurrentUser,
   getAuthToken,
+  registerUser,
   API_BASE_URL,
   setApiBaseUrl,
   DEFAULT_LOCAL_URL,
@@ -73,6 +74,7 @@ export default function App() {
 
   // Modales
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -94,6 +96,8 @@ export default function App() {
   });
   const [loginForm, setLoginForm] = useState({ username: 'admin', password: 'admin123' });
   const [loginError, setLoginError] = useState('');
+  const [registerForm, setRegisterForm] = useState({ username: '', name: '', email: '', password: '', role: 'OPERATOR' });
+  const [registerError, setRegisterError] = useState('');
   const [customHostInput, setCustomHostInput] = useState(API_BASE_URL);
 
   // Toast
@@ -242,6 +246,30 @@ export default function App() {
       loadData();
     } catch (err) {
       setLoginError(err.message || 'Usuario o contraseña inválidos');
+    }
+  };
+
+  // Registro de usuarios (POST /api/auth/users)
+  const handleRegisterSubmit = async (e) => {
+    e.preventDefault();
+    setRegisterError('');
+    try {
+      const created = await registerUser({
+        username: registerForm.username.trim(),
+        name: registerForm.name.trim(),
+        fullName: registerForm.name.trim(),
+        email: registerForm.email.trim(),
+        password: registerForm.password,
+        role: registerForm.role,
+      });
+      const username = created.username || registerForm.username.trim();
+      setLoginForm({ username, password: registerForm.password });
+      setRegisterForm({ username: '', name: '', email: '', password: '', role: 'OPERATOR' });
+      setShowRegisterModal(false);
+      setShowLoginModal(true);
+      triggerToast('Usuario Registrado', `POST /api/auth/users • ${username} (${created.role || registerForm.role})`);
+    } catch (err) {
+      setRegisterError(err.message || 'No se pudo registrar el usuario');
     }
   };
 
@@ -915,6 +943,116 @@ export default function App() {
               <button type="submit" className="w-full py-2.5 rounded-lg bg-primary hover:bg-primary-container text-white font-bold text-sm shadow-md transition">
                 Iniciar Sesión
               </button>
+
+              <button
+                type="button"
+                onClick={() => { setLoginError(''); setShowLoginModal(false); setShowRegisterModal(true); }}
+                className="w-full py-2 rounded-lg border border-surface-container text-on-surface-variant hover:text-primary hover:border-primary text-xs font-semibold transition"
+              >
+                ¿No tienes cuenta? Registrar usuario
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Registro de Usuario (POST /api/auth/users) */}
+      {showRegisterModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-md rounded-2xl bg-surface-container-lowest p-6 shadow-2xl flex flex-col border border-surface-container">
+            <div className="flex items-center justify-between pb-3 border-b border-surface-container">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-primary text-white">
+                  <span className="material-symbols-outlined text-2xl">person_add</span>
+                </div>
+                <div>
+                  <h2 className="font-headline-md text-lg text-on-surface font-bold">Registrar Usuario TI</h2>
+                  <p className="text-xs text-on-surface-variant">POST /api/auth/users • Mesa Operativa</p>
+                </div>
+              </div>
+              <button onClick={() => setShowRegisterModal(false)} className="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant">
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleRegisterSubmit} className="py-4 space-y-3">
+              {registerError && (
+                <div className="p-3 rounded-lg bg-red-100 text-red-700 text-xs font-semibold">{registerError}</div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1">Usuario <span className="text-primary">*</span></label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ej. operador.noc"
+                  value={registerForm.username}
+                  onChange={(e) => setRegisterForm({ ...registerForm, username: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1">Nombre completo</label>
+                <input
+                  type="text"
+                  placeholder="ej. Operador NOC Campus"
+                  value={registerForm.name}
+                  onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1">Correo institucional</label>
+                <input
+                  type="email"
+                  placeholder="ej. usuario@utp.edu.pe"
+                  value={registerForm.email}
+                  onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">Contraseña <span className="text-primary">*</span></label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={registerForm.password}
+                    onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">Rol</label>
+                  <select
+                    value={registerForm.role}
+                    onChange={(e) => setRegisterForm({ ...registerForm, role: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-surface-container focus:outline-none cursor-pointer"
+                  >
+                    <option value="OPERATOR">OPERATOR</option>
+                    <option value="SUPERVISOR">SUPERVISOR</option>
+                    <option value="ADMIN">ADMIN</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-surface-container flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowRegisterModal(false); setShowLoginModal(true); }}
+                  className="px-4 py-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold"
+                >
+                  Volver
+                </button>
+                <button type="submit" className="px-5 py-2 rounded-lg bg-primary hover:bg-primary-container text-white text-xs font-bold shadow-md transition">
+                  Registrar Usuario
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -1208,6 +1346,15 @@ export default function App() {
 
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
                 <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-emerald-600 text-white">POST</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/auth/users</code>
+                  <span className="text-xs text-emerald-600 font-semibold">201 Created</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Registro de usuarios con usuario, nombre, correo, contraseña y rol.</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between">
                   <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
                   <code className="font-mono text-xs font-bold text-on-surface">/api/auth/me</code>
                   <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
@@ -1317,7 +1464,7 @@ export default function App() {
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
                 <div className="flex items-center justify-between">
                   <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
-                  <code className="font-mono text-xs font-bold text-on-surface">/api/incidents/count</code>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/incidents/stats/count</code>
                   <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
                 </div>
                 <p className="text-xs text-on-surface-variant mt-1">Cantidad total de incidentes (alias de stats/total).</p>

@@ -15,6 +15,7 @@ import {
   loginUser,
   getCurrentUser,
   logoutUser,
+  registerUser,
   createIncident,
   updateIncidentStatus,
   deleteIncident,
@@ -78,7 +79,7 @@ await check("GET /api/incidents/stats/total", async () => summarize(await getTot
 await check("GET /api/incidents/stats/by-status", async () => summarize(await getStatsByStatus()));
 await check("GET /api/incidents/stats/by-severity", async () => summarize(await getStatsBySeverity()));
 await check("GET /api/incidents/stats/by-category", async () => summarize(await getStatsByCategory()));
-await check("GET /api/incidents/count", async () => summarize(await getIncidentCount()));
+await check("GET /api/incidents/stats/count", async () => summarize(await getIncidentCount()));
 
 // 3. Autenticación
 await check("POST /api/auth/login", async () => {
@@ -100,6 +101,24 @@ await check("GET /api/auth/me", async () => {
   const me = await getCurrentUser();
   if (me.authenticated === false) throw new Error("Sesión no autenticada");
   return `usuario=${me.username} rol=${me.role}`;
+});
+
+await check("POST /api/auth/users (registro)", async () => {
+  try {
+    const created = await registerUser({
+      username: "check.api.user",
+      name: "Usuario Check API",
+      fullName: "Usuario Check API",
+      email: "check.api.user@utp.edu.pe",
+      password: "check12345",
+      role: "OPERATOR",
+    });
+    return `id=${created.id || "n/a"} usuario=${created.username}`;
+  } catch (err) {
+    // Si el usuario ya fue creado por una ejecución previa, el endpoint está operativo.
+    if (/ya est. registrado/i.test(err.message)) return "usuario de prueba ya registrado (409 esperado)";
+    throw err;
+  }
 });
 
 // 4. CRUD sobre un ticket temporal (se elimina al final)
@@ -155,8 +174,9 @@ const expected = [
   "GET /api/incidents/stats/by-status",
   "GET /api/incidents/stats/by-severity",
   "GET /api/incidents/stats/by-category",
-  "GET /api/incidents/count",
+  "GET /api/incidents/stats/count",
   "POST /api/auth/login",
+  "POST /api/auth/users",
   "POST /api/auth/logout",
   "GET /api/auth/me",
 ];

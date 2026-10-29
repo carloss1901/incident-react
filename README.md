@@ -9,6 +9,7 @@ Este frontend se comunica directamente con la API REST de incidentes (por defect
 ### Endpoints Consumidos (contrato OpenAPI 3.0.1 del backend):
 - **Autenticación:**
   - `POST /api/auth/login`: Validación de credenciales y emisión del token de sesión.
+  - `POST /api/auth/users`: Registro de usuarios (usuario, nombre, correo, contraseña y rol).
   - `GET /api/auth/me`: Validación del token activo y datos del usuario autenticado.
   - `POST /api/auth/logout`: Cierre de sesión en el backend.
 - **Métricas y Estadísticas:**
@@ -17,7 +18,7 @@ Este frontend se comunica directamente con la API REST de incidentes (por defect
   - `GET /api/incidents/stats/by-status`: Conteo agrupado por estado.
   - `GET /api/incidents/stats/by-severity`: Conteo agrupado por severidad.
   - `GET /api/incidents/stats/by-category`: Conteo agrupado por categoría.
-  - `GET /api/incidents/count`: Cantidad total de incidentes.
+  - `GET /api/incidents/stats/count`: Cantidad total de incidentes.
 - **Gestión de Incidentes (CRUD):**
   - `GET /api/incidents`: Listado de todos los tickets.
   - `GET /api/incidents/{id}`: Detalle de incidente por ID.

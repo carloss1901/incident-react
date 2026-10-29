@@ -6,28 +6,38 @@ export const DEFAULT_RENDER_URL = "https://api-incident.onrender.com";
 const TOKEN_KEY = "utp_auth_token";
 const REQUEST_TIMEOUT = 20000;
 
+// Almacenamiento en memoria para entornos sin localStorage (Node, pruebas, SSR)
+const memoryStorage = new Map();
+
+function hasLocalStorage() {
+  return typeof localStorage !== "undefined";
+}
+
 function readStorage(key) {
   try {
-    return typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
+    if (hasLocalStorage()) return localStorage.getItem(key);
   } catch {
-    return null;
+    /* almacenamiento no disponible */
   }
+  return memoryStorage.has(key) ? memoryStorage.get(key) : null;
 }
 
 function writeStorage(key, value) {
   try {
-    if (typeof localStorage !== "undefined") localStorage.setItem(key, value);
+    if (hasLocalStorage()) localStorage.setItem(key, value);
+    else memoryStorage.set(key, value);
   } catch {
-    /* almacenamiento no disponible */
+    memoryStorage.set(key, value);
   }
 }
 
 function removeStorage(key) {
   try {
-    if (typeof localStorage !== "undefined") localStorage.removeItem(key);
+    if (hasLocalStorage()) localStorage.removeItem(key);
   } catch {
     /* almacenamiento no disponible */
   }
+  memoryStorage.delete(key);
 }
 
 export function getInitialApiUrl() {
@@ -127,6 +137,11 @@ export async function loginUser(username, password) {
   return data;
 }
 
+// POST /api/auth/users  (registro de usuario, responde 201 Created)
+export async function registerUser(data) {
+  return await request("/api/auth/users", { method: "POST", body: data });
+}
+
 // GET /api/auth/me
 export async function getCurrentUser() {
   return await request("/api/auth/me");
@@ -199,7 +214,7 @@ export async function getStatsByCategory() {
   return await request("/api/incidents/stats/by-category");
 }
 
-// GET /api/incidents/count
+// GET /api/incidents/stats/count
 export async function getIncidentCount() {
-  return await request("/api/incidents/count");
+  return await request("/api/incidents/stats/count");
 }
