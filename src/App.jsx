@@ -130,7 +130,6 @@ export default function App() {
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState('');
   const [usersAvailable, setUsersAvailable] = useState(true);
-  const [roleDrafts, setRoleDrafts] = useState({});
   const [savingRoleId, setSavingRoleId] = useState(null);
   const [usersSearch, setUsersSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState('ALL');
@@ -319,25 +318,15 @@ export default function App() {
     if (!isAdmin && activeView === 'users') setActiveView('incidents');
   }, [isAdmin, activeView]);
 
-  const handleRoleDraftChange = (id, role) => {
-    setRoleDrafts(prev => ({ ...prev, [id]: role }));
-  };
-
-  // PATCH /api/users/{id}/role
-  const handleSaveRole = async (target) => {
-    const role = roleDrafts[target.id] || target.role;
-    if (role === target.role) return;
+  // PATCH /api/users/{id}/role — se ejecuta al cambiar el selector
+  const handleRoleChange = async (target, role) => {
+    if (!role || role === target.role) return;
     setSavingRoleId(target.id);
     try {
       const updated = await updateUserRole(target.id, role);
       setUsers(prev => prev.map(item => (item.id === target.id
         ? { ...item, ...(updated && typeof updated === 'object' ? updated : {}), role: (updated && updated.role) || role }
         : item)));
-      setRoleDrafts(prev => {
-        const next = { ...prev };
-        delete next[target.id];
-        return next;
-      });
       const label = target.name || target.username || `#${target.id}`;
       triggerToast('Rol Actualizado', `PATCH /api/users/${target.id}/role • ${label} → ${ROLE_LABELS[role] || role}`);
       if (target.username && user && target.username === user.username) {
@@ -1302,7 +1291,7 @@ export default function App() {
                           <th className="py-3 px-4">Usuario</th>
                           <th className="py-3 px-4">Nombre / Correo</th>
                           <th className="py-3 px-4">Rol actual</th>
-                          <th className="py-3 px-4">Nuevo rol</th>
+                          <th className="py-3 px-4">Cambiar rol</th>
                           <th className="py-3 px-4 text-right">Acciones</th>
                         </tr>
                       </thead>
@@ -1320,9 +1309,7 @@ export default function App() {
                         ) : (
                           filteredUsers.map(item => {
                             const currentRole = item.role;
-                            const draftRole = roleDrafts[item.id] || currentRole;
                             const isSelf = Boolean(user && item.username === user.username);
-                            const changed = draftRole !== currentRole;
                             const badge = ROLE_STYLES[currentRole] || ROLE_STYLES.OPERATOR;
 
                             return (
@@ -1349,16 +1336,20 @@ export default function App() {
                                 </td>
                                 <td className="py-3 px-4">
                                   <select
-                                    value={draftRole}
+                                    value={currentRole}
                                     disabled={isSelf || savingRoleId === item.id}
-                                    onChange={(e) => handleRoleDraftChange(item.id, e.target.value)}
+                                    onChange={(e) => handleRoleChange(item, e.target.value)}
                                     className="bg-surface-container-low text-xs text-on-surface px-2 py-1.5 rounded-lg border border-surface-container focus:outline-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
-                                    title={isSelf ? 'No puede cambiar su propio rol' : 'Seleccione el nuevo rol'}
+                                    title={isSelf ? 'No puede cambiar su propio rol' : savingRoleId === item.id ? 'Guardando rol...' : 'Cambia el rol y se guarda al instante'}
+                                    aria-label={`Rol de ${item.username}`}
                                   >
                                     {USER_ROLES.map(role => (
                                       <option key={role} value={role}>{ROLE_LABELS[role] || role}</option>
                                     ))}
                                   </select>
+                                  {savingRoleId === item.id && (
+                                    <div className="text-[10px] text-on-surface-variant mt-1">Guardando...</div>
+                                  )}
                                 </td>
                                 <td className="py-3 px-4 text-right">
                                   <div className="inline-flex flex-wrap items-center justify-end gap-1">
@@ -1378,13 +1369,6 @@ export default function App() {
                                     >
                                       <span className="material-symbols-outlined text-base">person_remove</span>
                                       Eliminar
-                                    </button>
-                                    <button
-                                      onClick={() => handleSaveRole(item)}
-                                      disabled={!changed || isSelf || savingRoleId === item.id || !usersAvailable}
-                                      className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-container"
-                                    >
-                                      {savingRoleId === item.id ? 'Guardando...' : 'Aplicar rol'}
                                     </button>
                                   </div>
                                 </td>

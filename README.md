@@ -33,7 +33,7 @@ Este frontend se comunica directamente con la API REST de incidentes (por defect
   - `DELETE /api/incidents/{id}`: Eliminación de tickets.
 
 ### Administración de Usuarios (solo ADMIN):
-La pestaña **Usuarios** del encabezado lista las cuentas y permite cambiar el rol (Administrador, Supervisor, Operador, Soporte) con un selector por fila. Un administrador no puede modificar su propio rol y también puede registrar nuevas cuentas desde esa vista. Al hacer clic en el nombre de usuario se consulta su detalle.
+La pestaña **Usuarios** del encabezado lista las cuentas y permite cambiar el rol (Administrador, Supervisor, Operador, Soporte) con un selector por fila; el cambio se guarda automáticamente al elegirlo. Un administrador no puede modificar su propio rol y también puede registrar nuevas cuentas desde esa vista. Al hacer clic en el nombre de usuario se consulta su detalle.
 
 El registro de cuentas **no permite elegir rol**: toda cuenta nueva se crea como Operador (`OPERATOR`) y solo un administrador puede cambiarlo desde esta página.
 
