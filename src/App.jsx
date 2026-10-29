@@ -112,7 +112,7 @@ export default function App() {
   });
   const [loginForm, setLoginForm] = useState({ username: 'admin', password: 'admin123' });
   const [loginError, setLoginError] = useState('');
-  const [registerForm, setRegisterForm] = useState({ username: '', name: '', email: '', password: '', role: 'OPERATOR' });
+  const [registerForm, setRegisterForm] = useState({ username: '', name: '', email: '', password: '' });
   const [registerError, setRegisterError] = useState('');
   const [customHostInput, setCustomHostInput] = useState(API_BASE_URL);
 
@@ -398,20 +398,19 @@ export default function App() {
         fullName: registerForm.name.trim(),
         email: registerForm.email.trim(),
         password: registerForm.password,
-        role: registerForm.role,
       });
       const username = created.username || registerForm.username.trim();
-      setRegisterForm({ username: '', name: '', email: '', password: '', role: 'OPERATOR' });
+      setRegisterForm({ username: '', name: '', email: '', password: '' });
       if (isAdmin) {
         // Un administrador registra cuentas para terceros: permanece en la vista Usuarios.
         setShowRegisterModal(false);
-        triggerToast('Usuario Registrado', `POST /api/users • ${username} (${created.role || registerForm.role})`);
+        triggerToast('Usuario Registrado', `POST /api/users • ${username} (${created.role || 'OPERATOR'})`);
         if (usersAvailable) loadUsers();
       } else {
         setLoginForm({ username, password: registerForm.password });
         setShowRegisterModal(false);
         setShowLoginModal(true);
-        triggerToast('Usuario Registrado', `POST /api/users • ${username} (${created.role || registerForm.role})`);
+        triggerToast('Usuario Registrado', `POST /api/users • ${username} (${created.role || 'OPERATOR'})`);
       }
     } catch (err) {
       setRegisterError(err.message || 'No se pudo registrar el usuario');
@@ -1486,31 +1485,19 @@ export default function App() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-on-surface mb-1">Contraseña <span className="text-primary">*</span></label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={registerForm.password}
-                    onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:ring-2 focus:ring-primary/20 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-on-surface mb-1">Rol</label>
-                  <select
-                    value={registerForm.role}
-                    onChange={(e) => setRegisterForm({ ...registerForm, role: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-surface-container focus:outline-none cursor-pointer"
-                  >
-                    {USER_ROLES.map(role => (
-                      <option key={role} value={role}>{role}</option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1">Contraseña <span className="text-primary">*</span></label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={registerForm.password}
+                  onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                />
+                <p className="text-[11px] text-on-surface-variant mt-1">
+                  La cuenta se crea con rol <span className="font-semibold text-on-surface">OPERATOR</span>. Solo un administrador puede asignar otro rol desde la página de Usuarios.
+                </p>
               </div>
 
               <div className="pt-3 border-t border-surface-container flex items-center justify-end gap-2">
@@ -1888,7 +1875,7 @@ export default function App() {
                   <code className="font-mono text-xs font-bold text-on-surface">/api/users</code>
                   <span className="text-xs text-emerald-600 font-semibold">201 Created</span>
                 </div>
-                <p className="text-xs text-on-surface-variant mt-1">Registro de usuarios con usuario, nombre, correo, contraseña y rol.</p>
+                <p className="text-xs text-on-surface-variant mt-1">Registro de usuarios (usuario, nombre, correo y contraseña). Se crean con rol OPERATOR.</p>
               </div>
 
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">

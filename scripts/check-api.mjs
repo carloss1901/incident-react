@@ -115,9 +115,11 @@ await check("POST /api/users (registro)", async () => {
       fullName: "Usuario Check API",
       email: "check.api.user@utp.edu.pe",
       password: "check12345",
-      role: "OPERATOR",
     });
-    return `id=${created.id || "n/a"} usuario=${created.username}`;
+    if (String(created.role).toUpperCase() !== "OPERATOR") {
+      throw new Error(`El registro debe asignar OPERATOR, llegó ${created.role}`);
+    }
+    return `id=${created.id || "n/a"} usuario=${created.username} rol=${created.role}`;
   } catch (err) {
     // Si el usuario ya fue creado por una ejecución previa, el endpoint está operativo.
     if (/ya est. registrado/i.test(err.message)) return "usuario de prueba ya registrado (409 esperado)";
