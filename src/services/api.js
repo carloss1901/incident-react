@@ -163,6 +163,24 @@ export async function updateUserRole(id, role) {
   });
 }
 
+// PATCH /api/users/{id}/password
+// - El propio usuario debe enviar currentPassword + newPassword.
+// - Un ADMIN puede cambiar la de cualquier usuario enviando solo newPassword.
+export async function updateUserPassword(id, { currentPassword, newPassword } = {}) {
+  const body = { newPassword };
+  if (currentPassword) body.currentPassword = currentPassword;
+  return await request(`/api/users/${id}/password`, {
+    method: "PATCH",
+    body,
+  });
+}
+
+// DELETE /api/users/{id}  (solo ADMIN, responde 204 No Content)
+export async function deleteUser(id) {
+  await request(`/api/users/${id}`, { method: "DELETE" });
+  return true;
+}
+
 // GET /api/auth/me
 export async function getCurrentUser() {
   return await request("/api/auth/me");

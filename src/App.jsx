@@ -19,6 +19,8 @@ import {
   getUsers,
   getUserById,
   updateUserRole,
+  updateUserPassword,
+  deleteUser,
   USER_ROLES,
   API_BASE_URL,
   setApiBaseUrl,
@@ -136,6 +138,12 @@ export default function App() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [userDetailLoading, setUserDetailLoading] = useState(false);
   const [userDetailError, setUserDetailError] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordTarget, setPasswordTarget] = useState(null);
+  const [passwordForm, setPasswordForm] = useState({ userId: '', currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordInfo, setPasswordInfo] = useState('');
+  const [passwordSaving, setPasswordSaving] = useState(false);
 
   // Toast
   const [toast, setToast] = useState({ visible: false, title: '', message: '', isSuccess: true });
@@ -277,6 +285,15 @@ export default function App() {
         ...item,
         role: String(item.role || 'OPERATOR').toUpperCase(),
       })));
+      // Guarda el id propio (el backend puede incluirlo en /api/users) para cambios de contraseña.
+      setUser(prev => {
+        if (!prev || prev.id) return prev;
+        const match = list.find(item => item.username === prev.username);
+        if (!match) return prev;
+        const merged = { ...prev, id: match.id };
+        localStorage.setItem('utp_auth_user', JSON.stringify(merged));
+        return merged;
+      });
       setUsersAvailable(true);
     } catch (err) {
       setUsers([]);
@@ -360,6 +377,108 @@ export default function App() {
     }
   };
 
+  // PATCH /api/users/{id}/password
+  const resolveUserId = async (username) => {
+    if (!username) return null;
+    if (user && user.username === username && user.id) return user.id;
+    try {
+      const data = await getUsers();
+      const list = Array.isArray(data) ? data : (data && Array.isArray(data.users) ? data.users : []);
+      const match = list.find(item => item.username === username);
+      return match ? match.id : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleOpenPasswordModal = async (target) => {
+    const isSelf = !target || Boolean(user && target.username === user.username);
+    const base = target || user || {};
+    setPasswordTarget({
+      id: base.id || null,
+      username: base.username || '',
+      name: base.name || base.username || '',
+      isSelf,
+    });
+    setPasswordForm({ userId: '', currentPassword: '', newPassword: '', confirmPassword: '' });
+    setPasswordError('');
+    setPasswordInfo('');
+    setShowPasswordModal(true);
+
+    if (isSelf && !base.id) {
+      const resolvedId = await resolveUserId(base.username);
+      if (resolvedId) {
+        setPasswordTarget(prev => (prev ? { ...prev, id: resolvedId } : prev));
+      } else {
+        setPasswordInfo('No pudimos obtener tu ID de usuario desde la sesión. Ingrésalo abajo (el administrador puede verlo en la vista Usuarios) o pide que el backend incluya "id" en /api/auth/login y /api/auth/me.');
+      }
+    }
+  };
+
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!passwordTarget) return;
+
+    const { id, isSelf, username } = passwordTarget;
+    const targetId = id || Number(passwordForm.userId);
+    if (!Number.isInteger(targetId) || targetId <= 0) {
+      setPasswordError('No se pudo determinar el ID del usuario. Ingrésalo manualmente.');
+      return;
+    }
+    if (!passwordForm.newPassword || passwordForm.newPassword.length < 6) {
+      setPasswordError('La nueva contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('La confirmación no coincide con la nueva contraseña.');
+      return;
+    }
+    if (isSelf && !passwordForm.currentPassword) {
+      setPasswordError('Debes ingresar tu contraseña actual.');
+      return;
+    }
+
+    setPasswordSaving(true);
+    setPasswordError('');
+    try {
+      await updateUserPassword(targetId, {
+        ...(isSelf ? { currentPassword: passwordForm.currentPassword } : {}),
+        newPassword: passwordForm.newPassword,
+      });
+      setShowPasswordModal(false);
+      triggerToast(
+        'Contraseña Actualizada',
+        `PATCH /api/users/${targetId}/password • ${username || 'usuario'}`
+      );
+    } catch (err) {
+      if (err.status === 404 || err.status === 405) {
+        setPasswordError('El backend desplegado aún no expone PATCH /api/users/{id}/password.');
+      } else {
+        setPasswordError(err.message || 'No se pudo actualizar la contraseña.');
+      }
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
+  const handleDeleteUser = async (target) => {
+    if (!target || !target.id) return;
+    if (user && target.username === user.username) {
+      triggerToast('Acción no permitida', 'No puedes eliminar tu propia cuenta.', false);
+      return;
+    }
+    if (!window.confirm(`¿Eliminar la cuenta ${target.username} (${target.name || 'sin nombre'})?\n\nEndpoint: DELETE /api/users/${target.id}`)) {
+      return;
+    }
+    try {
+      await deleteUser(target.id);
+      setUsers(prev => prev.filter(item => item.id !== target.id));
+      triggerToast('Usuario Eliminado', `DELETE /api/users/${target.id} • ${target.username}`);
+    } catch (err) {
+      triggerToast('Error al Eliminar Usuario', err.message, false);
+    }
+  };
+
   const filteredUsers = useMemo(() => {
     const q = usersSearch.trim().toLowerCase();
     return users.filter(item => {
@@ -379,6 +498,7 @@ export default function App() {
     try {
       const auth = await loginUser(loginForm.username, loginForm.password);
       const sessionUser = {
+        id: auth.id,
         username: auth.username,
         name: auth.name || auth.username,
         role: auth.role,
@@ -1241,13 +1361,30 @@ export default function App() {
                                   </select>
                                 </td>
                                 <td className="py-3 px-4 text-right">
-                                  <button
-                                    onClick={() => handleSaveRole(item)}
-                                    disabled={!changed || isSelf || savingRoleId === item.id || !usersAvailable}
-                                    className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-container"
-                                  >
-                                    {savingRoleId === item.id ? 'Guardando...' : 'Aplicar'}
-                                  </button>
+                                  <div className="inline-flex items-center gap-1">
+                                    <button
+                                      onClick={() => handleOpenPasswordModal(item)}
+                                      className="p-1.5 rounded-lg text-tertiary hover:bg-tertiary/10"
+                                      title={`Cambiar contraseña de ${item.username}`}
+                                    >
+                                      <span className="material-symbols-outlined text-base">key</span>
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteUser(item)}
+                                      disabled={isSelf}
+                                      className="p-1.5 rounded-lg text-primary hover:bg-primary/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                                      title={isSelf ? 'No puedes eliminar tu propia cuenta' : `Eliminar ${item.username}`}
+                                    >
+                                      <span className="material-symbols-outlined text-base">person_remove</span>
+                                    </button>
+                                    <button
+                                      onClick={() => handleSaveRole(item)}
+                                      disabled={!changed || isSelf || savingRoleId === item.id || !usersAvailable}
+                                      className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-container"
+                                    >
+                                      {savingRoleId === item.id ? 'Guardando...' : 'Aplicar'}
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -1350,6 +1487,13 @@ export default function App() {
                   </button>
                 )}
                 <button
+                  onClick={() => { setShowProfileModal(false); handleOpenPasswordModal(null); }}
+                  className="px-3 py-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-base">key</span>
+                  Contraseña
+                </button>
+                <button
                   onClick={handleLogout}
                   className="px-3 py-2 rounded-lg text-error hover:bg-error/10 text-xs font-semibold flex items-center gap-1"
                 >
@@ -1359,6 +1503,115 @@ export default function App() {
               </div>
               <button onClick={() => setShowProfileModal(false)} className="px-4 py-2 rounded-lg bg-primary text-white text-xs font-bold">Cerrar</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Cambio de Contraseña (PATCH /api/users/{id}/password) */}
+      {showPasswordModal && passwordTarget && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-md rounded-2xl bg-surface-container-lowest p-6 shadow-2xl flex flex-col border border-surface-container">
+            <div className="flex items-center justify-between pb-3 border-b border-surface-container">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-primary text-white">
+                  <span className="material-symbols-outlined text-2xl">key</span>
+                </div>
+                <div>
+                  <h2 className="font-headline-md text-lg text-on-surface font-bold">Cambiar contraseña</h2>
+                  <p className="text-xs text-on-surface-variant">
+                    PATCH /api/users/{passwordTarget.id || '{id}'}/password • {passwordTarget.isSelf ? 'Mi cuenta' : passwordTarget.username}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowPasswordModal(false)} className="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant">
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handlePasswordSubmit} className="py-4 space-y-3">
+              {passwordInfo && (
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+                  {passwordInfo}
+                </div>
+              )}
+              {passwordError && (
+                <div className="p-3 rounded-lg bg-red-100 text-red-700 text-xs font-semibold">{passwordError}</div>
+              )}
+
+              <div className="p-2.5 rounded-lg bg-surface-container-low border border-surface-container text-[11px] text-on-surface-variant">
+                {passwordTarget.isSelf
+                  ? 'Para tu propia cuenta se exige la contraseña actual.'
+                  : `Como administrador puedes asignar una nueva contraseña a ${passwordTarget.username} sin conocer la actual.`}
+              </div>
+
+              {passwordTarget.isSelf && !passwordTarget.id && (
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">ID de usuario <span className="text-primary">*</span></label>
+                  <input
+                    type="number"
+                    min={1}
+                    placeholder="ej. 3"
+                    value={passwordForm.userId}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, userId: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                  />
+                  <p className="text-[11px] text-on-surface-variant mt-1">Pídelo al administrador o consúltalo en la vista Usuarios.</p>
+                </div>
+              )}
+
+              {passwordTarget.isSelf && (
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">Contraseña actual <span className="text-primary">*</span></label>
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1">Nueva contraseña <span className="text-primary">*</span></label>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                />
+                <p className="text-[11px] text-on-surface-variant mt-1">Mínimo 6 caracteres.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-on-surface mb-1">Confirmar nueva contraseña <span className="text-primary">*</span></label>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-surface-container flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordModal(false)}
+                  className="px-4 py-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={passwordSaving || (!passwordTarget.id && !passwordForm.userId)}
+                  className="px-5 py-2 rounded-lg bg-primary hover:bg-primary-container text-white text-xs font-bold shadow-md transition disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {passwordSaving ? 'Guardando...' : 'Guardar contraseña'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1910,6 +2163,24 @@ export default function App() {
                   <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
                 </div>
                 <p className="text-xs text-on-surface-variant mt-1">Actualización del rol de un usuario (Administrador, Supervisor, Operador o Soporte).</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-amber-500 text-white">PATCH</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/users/{'{id}'}/password</code>
+                  <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Cambio de contraseña. El propio usuario envía actual + nueva; un administrador puede cambiarla sin la actual.</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-red-600 text-white">DELETE</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/users/{'{id}'}</code>
+                  <span className="text-xs text-emerald-600 font-semibold">204 No Content</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Elimina una cuenta de usuario (solo administrador; no permite eliminar la propia).</p>
               </div>
 
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">

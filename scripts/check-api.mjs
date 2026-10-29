@@ -19,6 +19,8 @@ import {
   getUsers,
   getUserById,
   updateUserRole,
+  updateUserPassword,
+  deleteUser,
   USER_ROLES,
   createIncident,
   updateIncidentStatus,
@@ -166,6 +168,61 @@ await check("PATCH /api/users/{id}/role", async () => {
   }
 });
 
+await check("PATCH /api/users/{id}/password (admin y propia)", async () => {
+  if (!usersList) return "omitido: falta GET /api/users";
+  const target = usersList.find(u => u.username === "check.api.user");
+  if (!target) return "omitido: falta usuario de prueba";
+  try {
+    // El admin restablece una contraseña conocida sin pedir la actual.
+    await updateUserPassword(target.id, { newPassword: "check12345" });
+    // El propio usuario cambia su contraseña aportando la actual.
+    await loginUser("check.api.user", "check12345");
+    await updateUserPassword(target.id, {
+      currentPassword: "check12345",
+      newPassword: "check54321",
+    });
+    await loginUser("check.api.user", "check54321");
+    // Restaura la contraseña original del usuario de prueba.
+    await loginUser("admin", "admin123");
+    await updateUserPassword(target.id, { newPassword: "check12345" });
+    return `id=${target.id} flujo admin + cambio propio verificado`;
+  } catch (err) {
+    if (err.status === 404 || err.status === 405) return "pendiente: el backend desplegado aún no expone este endpoint";
+    throw err;
+  }
+});
+
+await check("DELETE /api/users/{id}", async () => {
+  const suffix = Date.now();
+  const temp = await registerUser({
+    username: `check.delete.${suffix}`,
+    name: "Usuario Temporal",
+    email: `check.delete.${suffix}@utp.edu.pe`,
+    password: "check12345",
+  });
+  await getUserById(temp.id);
+  await deleteUser(temp.id);
+
+  let removed = false;
+  try {
+    await getUserById(temp.id);
+  } catch (err) {
+    removed = err.status === 404;
+  }
+  if (!removed) throw new Error("El usuario eliminado sigue existiendo");
+
+  // Limpieza del usuario persistente de pruebas para no ensuciar la base.
+  const persistent = usersList && usersList.find(u => u.username === "check.api.user");
+  if (persistent) {
+    try {
+      await deleteUser(persistent.id);
+    } catch {
+      /* la limpieza no debe romper la verificación */
+    }
+  }
+  return `id=${temp.id} eliminado (404 confirmado)`;
+});
+
 // 4. CRUD sobre un ticket temporal (se elimina al final)
 let createdId = null;
 await check("POST /api/incidents", async () => {
@@ -225,6 +282,8 @@ const expected = [
   "GET /api/users",
   "GET /api/users/{id}",
   "PATCH /api/users/{id}/role",
+  "PATCH /api/users/{id}/password",
+  "DELETE /api/users/{id}",
   "POST /api/auth/logout",
   "GET /api/auth/me",
 ];

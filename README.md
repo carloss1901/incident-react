@@ -16,6 +16,8 @@ Este frontend se comunica directamente con la API REST de incidentes (por defect
   - `GET /api/users`: Listado de usuarios para el panel de administración (requiere token ADMIN).
   - `GET /api/users/{id}`: Detalle de un usuario por ID.
   - `PATCH /api/users/{id}/role`: Cambio de rol de un usuario (Administrador, Supervisor, Operador o Soporte).
+  - `PATCH /api/users/{id}/password`: Cambio de contraseña (propia con contraseña actual; un administrador puede cambiarla sin la actual).
+  - `DELETE /api/users/{id}`: Eliminación de cuentas (solo administrador; no permite eliminar la propia).
 - **Métricas y Estadísticas:**
   - `GET /api/incidents/stats`: Totales, activos, inactivos y desgloses.
   - `GET /api/incidents/stats/total`: Total de incidentes.
@@ -34,6 +36,13 @@ Este frontend se comunica directamente con la API REST de incidentes (por defect
 La pestaña **Usuarios** del encabezado lista las cuentas y permite cambiar el rol (Administrador, Supervisor, Operador, Soporte) con un selector por fila. Un administrador no puede modificar su propio rol y también puede registrar nuevas cuentas desde esa vista. Al hacer clic en el nombre de usuario se consulta su detalle.
 
 El registro de cuentas **no permite elegir rol**: toda cuenta nueva se crea como Operador (`OPERATOR`) y solo un administrador puede cambiarlo desde esta página.
+
+### Cambio de contraseña:
+- **Usuario autenticado:** en **Mi Perfil → Contraseña** ingresa su contraseña actual y la nueva (mínimo 6 caracteres).
+- **Administrador:** desde la tabla de Usuarios, el botón de llave permite asignar una nueva contraseña a cualquier cuenta sin conocer la actual.
+- **Eliminar cuentas:** el administrador puede eliminar cualquier usuario (icono de persona) salvo su propia cuenta.
+
+Limitación actual del contrato: `PATCH /api/users/{id}/password` requiere el `id` del usuario, pero `/api/auth/login` y `/api/auth/me` no lo devuelven. El frontend lo resuelve con `GET /api/users` cuando la sesión es ADMIN; para un usuario no administrador, el modal solicita su ID manualmente (el administrador puede verlo en la vista Usuarios). Lo ideal es que el backend incluya `id` en login/me o exponga `/api/users/me/password`.
 
 Endpoints utilizados:
 - `GET /api/users` → listado de usuarios `{ id, username, name, email, role, createdAt }` (requiere token ADMIN).
