@@ -9,12 +9,13 @@ Este frontend se comunica directamente con la API REST de incidentes (por defect
 ### Endpoints Consumidos (contrato OpenAPI 3.0.1 del backend):
 - **Autenticación:**
   - `POST /api/auth/login`: Validación de credenciales y emisión del token de sesión.
-  - `POST /api/auth/users`: Registro de usuarios (usuario, nombre, correo, contraseña y rol).
-  - `GET /api/users`: Listado de usuarios para el panel de administración (requiere token ADMIN).
-  - `GET /api/auth/users/{id}`: Detalle de un usuario por ID.
-  - `PATCH /api/auth/users/{id}/role`: Cambio de rol de un usuario (`ADMIN`, `SUPERVISOR`, `OPERATOR`, `SUPPORT`).
   - `GET /api/auth/me`: Validación del token activo y datos del usuario autenticado.
   - `POST /api/auth/logout`: Cierre de sesión en el backend.
+- **Usuarios:**
+  - `POST /api/users`: Registro de usuarios (usuario, nombre, correo, contraseña y rol).
+  - `GET /api/users`: Listado de usuarios para el panel de administración (requiere token ADMIN).
+  - `GET /api/users/{id}`: Detalle de un usuario por ID.
+  - `PATCH /api/users/{id}/role`: Cambio de rol de un usuario (`ADMIN`, `SUPERVISOR`, `OPERATOR`, `SUPPORT`).
 - **Métricas y Estadísticas:**
   - `GET /api/incidents/stats`: Totales, activos, inactivos y desgloses.
   - `GET /api/incidents/stats/total`: Total de incidentes.
@@ -34,10 +35,10 @@ La pestaña **Usuarios** del encabezado lista las cuentas y permite cambiar el r
 
 Endpoints utilizados:
 - `GET /api/users` → listado de usuarios `{ id, username, name, email, role, createdAt }` (requiere token ADMIN).
-- `GET /api/auth/users/{id}` → detalle de usuario.
-- `PATCH /api/auth/users/{id}/role` con `{ "role": "SUPPORT" }` → usuario actualizado.
+- `GET /api/users/{id}` → detalle de usuario.
+- `PATCH /api/users/{id}/role` con `{ "role": "SUPPORT" }` → usuario actualizado.
 
-Nota: el backend también expone `PUT/POST/PATCH /api/auth/roles`, que duplica la funcionalidad de `PATCH /api/auth/users/{id}/role`; el frontend usa solo este último.
+Nota: los endpoints de usuarios quedaron unificados bajo `/api/users` (listado, registro, detalle y cambio de rol), por lo que el frontend ya no usa `/api/auth/users` ni `/api/auth/roles`.
 
 ### Verificación de integración:
 ```bash

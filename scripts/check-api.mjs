@@ -107,7 +107,7 @@ await check("GET /api/auth/me", async () => {
   return `usuario=${me.username} rol=${me.role}`;
 });
 
-await check("POST /api/auth/users (registro)", async () => {
+await check("POST /api/users (registro)", async () => {
   try {
     const created = await registerUser({
       username: "check.api.user",
@@ -138,7 +138,7 @@ await check("GET /api/users (panel admin)", async () => {
   }
 });
 
-await check("GET /api/auth/users/{id} (detalle)", async () => {
+await check("GET /api/users/{id} (detalle)", async () => {
   if (!usersList) return "omitido: falta GET /api/users";
   const target = usersList.find(u => u.username === "check.api.user") || usersList[0];
   const user = await getUserById(target.id);
@@ -146,7 +146,7 @@ await check("GET /api/auth/users/{id} (detalle)", async () => {
   return `id=${user.id} usuario=${user.username} rol=${user.role}`;
 });
 
-await check("PATCH /api/auth/users/{id}/role", async () => {
+await check("PATCH /api/users/{id}/role", async () => {
   if (!usersList) return "omitido: falta GET /api/users";
   const target = usersList.find(u => u.username === "check.api.user") || usersList[0];
   if (!target) return "omitido: no hay usuarios para actualizar";
@@ -219,10 +219,10 @@ const expected = [
   "GET /api/incidents/stats/by-category",
   "GET /api/incidents/stats/count",
   "POST /api/auth/login",
-  "POST /api/auth/users",
+  "POST /api/users",
   "GET /api/users",
-  "GET /api/auth/users/{id}",
-  "PATCH /api/auth/users/{id}/role",
+  "GET /api/users/{id}",
+  "PATCH /api/users/{id}/role",
   "POST /api/auth/logout",
   "GET /api/auth/me",
 ];
@@ -241,10 +241,6 @@ if (!spec) {
   const extra = expected.filter(op => !documented.includes(op));
   console.log(`  Documentados: ${documented.length} | Cubiertos por el frontend: ${expected.length}`);
   if (missing.length) console.log(`  Sin implementar en el frontend: ${missing.join(", ")}`);
-  const redundantRoleApis = missing.filter(op => /^(PUT|POST|PATCH) \/api\/auth\/roles$/.test(op));
-  if (redundantRoleApis.length) {
-    console.log("  Nota: /api/auth/roles (PUT/POST/PATCH) duplica la funcionalidad de PATCH /api/auth/users/{id}/role; se recomienda retirarla del backend.");
-  }
   if (extra.length) console.log(`  Implementados en el frontend pero aún no documentados por el backend: ${extra.join(", ")}`);
   if (!missing.length && !extra.length) console.log("  Cobertura completa: todos los endpoints documentados están implementados.");
 }

@@ -137,12 +137,12 @@ export async function loginUser(username, password) {
   return data;
 }
 
-// POST /api/auth/users  (registro de usuario, responde 201 Created)
+// POST /api/users  (registro de usuario, responde 201 Created)
 export async function registerUser(data) {
-  return await request("/api/auth/users", { method: "POST", body: data });
+  return await request("/api/users", { method: "POST", body: data });
 }
 
-// Roles aceptados por el backend (validados en PATCH /api/auth/users/{id}/role)
+// Roles aceptados por el backend (validados en PATCH /api/users/{id}/role)
 export const USER_ROLES = ["ADMIN", "SUPERVISOR", "OPERATOR", "SUPPORT"];
 
 // GET /api/users  (listado de usuarios, solo ADMIN)
@@ -150,14 +150,14 @@ export async function getUsers() {
   return await request("/api/users");
 }
 
-// GET /api/auth/users/{id}  (detalle de usuario, solo ADMIN)
+// GET /api/users/{id}  (detalle de usuario, solo ADMIN)
 export async function getUserById(id) {
-  return await request(`/api/auth/users/${id}`);
+  return await request(`/api/users/${id}`);
 }
 
-// PATCH /api/auth/users/{id}/role  (cambio de rol, solo ADMIN)
+// PATCH /api/users/{id}/role  (cambio de rol, solo ADMIN)
 export async function updateUserRole(id, role) {
-  return await request(`/api/auth/users/${id}/role`, {
+  return await request(`/api/users/${id}/role`, {
     method: "PATCH",
     body: { role },
   });

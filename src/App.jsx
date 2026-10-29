@@ -112,7 +112,7 @@ export default function App() {
   const [registerError, setRegisterError] = useState('');
   const [customHostInput, setCustomHostInput] = useState(API_BASE_URL);
 
-  // Administración de usuarios (GET /api/auth/users, PATCH /api/auth/users/{id}/role)
+  // Administración de usuarios (GET /api/users, PATCH /api/users/{id}/role)
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState('');
@@ -255,7 +255,7 @@ export default function App() {
 
   const isAdmin = Boolean(user && String(user.role || '').toUpperCase() === 'ADMIN');
 
-  // GET /api/auth/users: listado de usuarios para administración
+  // GET /api/users: listado de usuarios para administración
   const loadUsers = useCallback(async () => {
     setUsersLoading(true);
     setUsersError('');
@@ -295,7 +295,7 @@ export default function App() {
     setRoleDrafts(prev => ({ ...prev, [id]: role }));
   };
 
-  // PATCH /api/auth/users/{id}/role
+  // PATCH /api/users/{id}/role
   const handleSaveRole = async (target) => {
     const role = roleDrafts[target.id] || target.role;
     if (role === target.role) return;
@@ -311,7 +311,7 @@ export default function App() {
         return next;
       });
       const label = target.name || target.username || `#${target.id}`;
-      triggerToast('Rol Actualizado', `PATCH /api/auth/users/${target.id}/role • ${label} → ${role}`);
+      triggerToast('Rol Actualizado', `PATCH /api/users/${target.id}/role • ${label} → ${role}`);
       if (target.username && user && target.username === user.username) {
         setUser(prev => (prev ? { ...prev, role } : prev));
         localStorage.setItem('utp_auth_user', JSON.stringify({ ...user, role }));
@@ -319,7 +319,7 @@ export default function App() {
     } catch (err) {
       if (err.status === 404 || err.status === 405) {
         setUsersAvailable(false);
-        setUsersError('El backend aún no expone PATCH /api/auth/users/{id}/role.');
+        setUsersError('El backend aún no expone PATCH /api/users/{id}/role.');
       }
       triggerToast('Error al Actualizar Rol', err.message, false);
     } finally {
@@ -327,7 +327,7 @@ export default function App() {
     }
   };
 
-  // GET /api/auth/users/{id}: detalle del usuario seleccionado
+  // GET /api/users/{id}: detalle del usuario seleccionado
   const handleOpenUserDetail = async (target) => {
     setSelectedUser(target);
     setShowUserModal(true);
@@ -383,7 +383,7 @@ export default function App() {
     }
   };
 
-  // Registro de usuarios (POST /api/auth/users)
+  // Registro de usuarios (POST /api/users)
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     setRegisterError('');
@@ -401,13 +401,13 @@ export default function App() {
       if (isAdmin) {
         // Un administrador registra cuentas para terceros: permanece en la vista Usuarios.
         setShowRegisterModal(false);
-        triggerToast('Usuario Registrado', `POST /api/auth/users • ${username} (${created.role || registerForm.role})`);
+        triggerToast('Usuario Registrado', `POST /api/users • ${username} (${created.role || registerForm.role})`);
         if (usersAvailable) loadUsers();
       } else {
         setLoginForm({ username, password: registerForm.password });
         setShowRegisterModal(false);
         setShowLoginModal(true);
-        triggerToast('Usuario Registrado', `POST /api/auth/users • ${username} (${created.role || registerForm.role})`);
+        triggerToast('Usuario Registrado', `POST /api/users • ${username} (${created.role || registerForm.role})`);
       }
     } catch (err) {
       setRegisterError(err.message || 'No se pudo registrar el usuario');
@@ -1082,7 +1082,7 @@ export default function App() {
                         <p className="text-sm font-bold text-amber-800">Endpoints de usuarios no disponibles</p>
                         <p className="text-xs text-amber-700 mt-1">
                           La interfaz está lista, pero el backend debe exponer <code className="font-mono">GET /api/users</code> y{' '}
-                          <code className="font-mono">PATCH /api/auth/users/{'{id}'}/role</code> para listar y guardar los cambios.
+                          <code className="font-mono">PATCH /api/users/{'{id}'}/role</code> para listar y guardar los cambios.
                         </p>
                       </div>
                     </div>
@@ -1161,7 +1161,7 @@ export default function App() {
                                   <button
                                     onClick={() => handleOpenUserDetail(item)}
                                     className="font-bold text-on-surface hover:text-primary transition flex items-center gap-1.5"
-                                    title="Ver detalle (GET /api/auth/users/{id})"
+                                    title="Ver detalle (GET /api/users/{id})"
                                   >
                                     {item.username}
                                     {isSelf && <span className="px-1.5 py-0.5 rounded bg-surface-container text-[10px] font-semibold text-on-surface-variant">Tú</span>}
@@ -1207,7 +1207,7 @@ export default function App() {
                   </div>
 
                   <p className="text-[11px] text-on-surface-variant mt-3">
-                    Listado: <code className="font-mono">GET /api/users</code> · Actualización: <code className="font-mono">PATCH /api/auth/users/{'{id}'}/role</code> con cuerpo <code className="font-mono">{'{ "role": "ADMIN | SUPERVISOR | OPERATOR | SUPPORT" }'}</code>.
+                    Listado: <code className="font-mono">GET /api/users</code> · Actualización: <code className="font-mono">PATCH /api/users/{'{id}'}/role</code> con cuerpo <code className="font-mono">{'{ "role": "ADMIN | SUPERVISOR | OPERATOR | SUPPORT" }'}</code>.
                   </p>
                 </>
               )}
@@ -1300,7 +1300,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal: Registro de Usuario (POST /api/auth/users) */}
+      {/* Modal: Registro de Usuario (POST /api/users) */}
       {showRegisterModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="relative w-full max-w-md rounded-2xl bg-surface-container-lowest p-6 shadow-2xl flex flex-col border border-surface-container">
@@ -1311,7 +1311,7 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="font-headline-md text-lg text-on-surface font-bold">Registrar Usuario TI</h2>
-                  <p className="text-xs text-on-surface-variant">POST /api/auth/users • Mesa Operativa</p>
+                  <p className="text-xs text-on-surface-variant">POST /api/users • Mesa Operativa</p>
                 </div>
               </div>
               <button onClick={() => setShowRegisterModal(false)} className="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant">
@@ -1659,7 +1659,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal: Detalle de Usuario (GET /api/auth/users/{id}) */}
+      {/* Modal: Detalle de Usuario (GET /api/users/{id}) */}
       {showUserModal && selectedUser && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="relative w-full max-w-md rounded-2xl bg-surface-container-lowest p-6 shadow-2xl flex flex-col border border-surface-container">
@@ -1670,7 +1670,7 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="font-headline-md text-base text-on-surface font-bold">{selectedUser.username}</h2>
-                  <p className="text-xs text-on-surface-variant">GET /api/auth/users/{selectedUser.id}</p>
+                  <p className="text-xs text-on-surface-variant">GET /api/users/{selectedUser.id}</p>
                 </div>
               </div>
               <button onClick={() => setShowUserModal(false)} className="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant">
@@ -1757,7 +1757,7 @@ export default function App() {
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
                 <div className="flex items-center justify-between">
                   <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-emerald-600 text-white">POST</span>
-                  <code className="font-mono text-xs font-bold text-on-surface">/api/auth/users</code>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/users</code>
                   <span className="text-xs text-emerald-600 font-semibold">201 Created</span>
                 </div>
                 <p className="text-xs text-on-surface-variant mt-1">Registro de usuarios con usuario, nombre, correo, contraseña y rol.</p>
@@ -1775,7 +1775,7 @@ export default function App() {
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
                 <div className="flex items-center justify-between">
                   <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
-                  <code className="font-mono text-xs font-bold text-on-surface">/api/auth/users/{'{id}'}</code>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/users/{'{id}'}</code>
                   <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
                 </div>
                 <p className="text-xs text-on-surface-variant mt-1">Detalle de un usuario por su identificador.</p>
@@ -1784,7 +1784,7 @@ export default function App() {
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
                 <div className="flex items-center justify-between">
                   <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-amber-500 text-white">PATCH</span>
-                  <code className="font-mono text-xs font-bold text-on-surface">/api/auth/users/{'{id}'}/role</code>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/users/{'{id}'}/role</code>
                   <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
                 </div>
                 <p className="text-xs text-on-surface-variant mt-1">Actualización del rol de un usuario (ADMIN, SUPERVISOR, OPERATOR o SUPPORT).</p>
