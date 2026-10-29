@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <meta content="web_standard" name="shell-type">
+  <title>UTP Soporte TI - Mesa Operativa de Incidentes</title>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;family=Montserrat:wght@100..900&amp;display=swap" rel="stylesheet">
+  <style>
+    @layer base {
+      html, body { margin: 0; padding: 0; }
+      body { overscroll-behavior: none; }
+      main > :first-child { margin-top: 0 !important; }
+      main > :last-child { margin-bottom: 0 !important; }
+    }
+    ::-webkit-scrollbar { display: none; }
+  </style>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#9e001f",
+            "primary-container": "#c8102e",
+            "on-primary": "#ffffff",
+            "on-primary-container": "#ffdad8",
+            "secondary": "#ba0037",
+            "secondary-container": "#e70648",
+            "on-secondary": "#ffffff",
+            "tertiary": "#00517d",
+            "tertiary-container": "#006aa1",
+            "tertiary-fixed": "#cce5ff",
+            "on-tertiary-fixed-variant": "#004b73",
+            "background": "#f9f9ff",
+            "surface": "#f9f9ff",
+            "surface-dim": "#cfdaf2",
+            "surface-bright": "#f9f9ff",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#f0f3ff",
+            "surface-container": "#e7eeff",
+            "surface-container-high": "#dee8ff",
+            "surface-container-highest": "#d8e3fb",
+            "on-surface": "#111c2d",
+            "on-surface-variant": "#5c403f",
+            "outline": "#906f6e",
+            "outline-variant": "#e5bdbb",
+            "error": "#ba1a1a",
+            "error-container": "#ffdad6"
+          },
+          fontFamily: {
+            display: ["Montserrat", "sans-serif"],
+            "headline-lg": ["Montserrat", "sans-serif"],
+            "headline-md": ["Montserrat", "sans-serif"],
+            "headline-sm": ["Montserrat", "sans-serif"],
+            "body-lg": ["Inter", "sans-serif"],
+            "body-md": ["Inter", "sans-serif"],
+            "body-sm": ["Inter", "sans-serif"],
+            "label-lg": ["Inter", "sans-serif"],
+            "label-md": ["Inter", "sans-serif"],
+            "label-sm": ["Inter", "sans-serif"]
+          }
+        }
+      }
+    };
+  </script>
+</head>
+<body class="bg-background font-body-md text-on-surface antialiased min-h-screen flex flex-col justify-between">
+
+  <!-- Fixed Top Header -->
+  <header class="fixed top-0 left-0 right-0 z-40 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
+    <div class="h-16 w-full px-6 flex items-center justify-between gap-4">
+      <!-- Logo & Brand -->
+      <div class="flex items-center gap-3">
+        <img alt="Universidad Tecnológica del Perú" class="h-9 w-auto object-contain" src="https://upload.wikimedia.org/wikipedia/commons/5/50/Utplogonuevo.svg">
+        <div class="flex flex-col">
+          <span class="font-headline-sm text-base text-primary tracking-tight font-bold">UTP Incidentes TI</span>
+          <span class="font-label-sm text-xs text-on-surface-variant leading-none">Gestión Campus &amp; Infraestructura</span>
+        </div>
+      </div>
+
+      <!-- Center Host Indicator / Toggle -->
+      <div class="hidden md:flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-lg border border-surface-container">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" id="backendPingDot"></span>
+        <span class="font-mono text-xs font-medium text-on-surface-variant" id="apiHostLabel">Conectando...</span>
+        <button id="btnSwitchHost" title="Cambiar Servidor API" class="text-xs text-tertiary hover:underline ml-1 font-semibold flex items-center gap-0.5">
+          <span class="material-symbols-outlined text-sm">swap_horiz</span> Servidor
+        </button>
+      </div>
+
+      <!-- Right Actions & User Profile -->
+      <div class="flex items-center gap-3">
+        <button aria-label="Notificaciones" class="relative p-2 rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors" type="button" id="btnSyncApi">
+          <span class="material-symbols-outlined text-xl">sync</span>
+        </button>
+
+        <!-- User Info with Click to Login/Logout -->
+        <div class="flex items-center gap-2 pl-2 border-l border-surface-container cursor-pointer hover:opacity-90 transition" id="userProfileArea">
+          <div class="hidden sm:flex flex-col text-right">
+            <span class="font-label-sm text-xs text-on-surface font-semibold" id="navUserName">Admin TI UTP</span>
+            <span class="font-label-sm text-[10px] text-outline leading-none" id="navUserRole">Supervisión NOC</span>
+          </div>
+          <div class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm" id="navUserAvatar">
+            A
+          </div>
+          <button id="btnLogout" title="Cerrar sesión" class="p-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition ml-1">
+            <span class="material-symbols-outlined text-lg">logout</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Space -->
+  <main class="w-full pt-20 px-6 max-w-7xl mx-auto flex-1 pb-16">
+    <div class="flex flex-col w-full">
+
+      <!-- Breadcrumb & Swagger Action Bar -->
+      <section class="w-full pt-2 pb-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div class="flex items-center gap-2 text-xs text-on-surface-variant">
+            <span class="flex items-center gap-1 font-semibold text-primary">
+              <span class="material-symbols-outlined text-sm">terminal</span>
+              incident-controller
+            </span>
+            <span>/</span>
+            <span class="text-on-surface font-medium">Mesa Operativa Campus</span>
+            <span class="px-2 py-0.5 rounded-full bg-surface-container-high text-[11px] font-mono text-on-surface" id="apiEndpointBadge">
+              /api/incidents
+            </span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-700 text-xs font-semibold" id="connStatusPill">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+              <span>REST API Conectada • OAS 3.0</span>
+            </div>
+            <button class="flex items-center gap-1 px-3 py-1 rounded-lg bg-surface-container-lowest text-on-surface-variant hover:text-primary shadow-sm hover:shadow transition text-xs font-semibold" id="btnOpenDocs">
+              <span class="material-symbols-outlined text-sm">code</span>
+              <span>APIs &amp; Docs</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Metric Bento Grid (5 Cards) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <!-- Total Tickets -->
+          <div class="relative overflow-hidden rounded-xl bg-surface-container-lowest p-4 shadow-sm border border-surface-container">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Total Incidentes</span>
+              <span class="p-1 rounded-lg bg-surface-container text-tertiary material-symbols-outlined text-base">dataset</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="font-display text-3xl text-on-surface font-bold" id="statTotal">--</span>
+              <span class="text-xs text-emerald-600 font-medium">GET /api/incidents/stats</span>
+            </div>
+            <div class="mt-2 text-xs text-on-surface-variant flex items-center justify-between">
+              <span>Sincronizado con BD</span>
+              <span class="font-semibold text-on-surface">SQLite / JPA</span>
+            </div>
+            <div class="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-tertiary to-tertiary-container"></div>
+          </div>
+
+          <!-- Active / Attention -->
+          <div class="relative overflow-hidden rounded-xl bg-surface-container-lowest p-4 shadow-sm border border-surface-container">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Activos / En Atención</span>
+              <span class="p-1 rounded-lg bg-emerald-100 text-emerald-700 material-symbols-outlined text-base">radio_button_checked</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="font-display text-3xl text-emerald-700 font-bold" id="statActive">--</span>
+              <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-xs font-bold">Active</span>
+            </div>
+            <div class="mt-2 text-xs text-on-surface-variant flex items-center justify-between">
+              <span>Requieren acción técnica</span>
+              <span class="font-semibold text-emerald-700" id="statActivePct">--%</span>
+            </div>
+            <div class="absolute bottom-0 left-0 right-0 h-1 bg-emerald-500"></div>
+          </div>
+
+          <!-- Inactive / Closed -->
+          <div class="relative overflow-hidden rounded-xl bg-surface-container-lowest p-4 shadow-sm border border-surface-container">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Inactivos / Cerrados</span>
+              <span class="p-1 rounded-lg bg-surface-container text-outline material-symbols-outlined text-base">task_alt</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="font-display text-3xl text-on-surface font-bold" id="statInactive">--</span>
+              <span class="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant text-xs font-bold">Inactive</span>
+            </div>
+            <div class="mt-2 text-xs text-on-surface-variant flex items-center justify-between">
+              <span>Tickets solucionados</span>
+              <span class="font-semibold text-on-surface" id="statInactivePct">--%</span>
+            </div>
+            <div class="absolute bottom-0 left-0 right-0 h-1 bg-outline"></div>
+          </div>
+
+          <!-- Critical / High Priority -->
+          <div class="relative overflow-hidden rounded-xl bg-surface-container-lowest p-4 shadow-sm border border-surface-container">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Prioridad Alta (High)</span>
+              <span class="p-1 rounded-lg bg-red-100 text-primary material-symbols-outlined text-base">warning</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="font-display text-3xl text-primary font-bold" id="statHigh">--</span>
+              <span class="px-2 py-0.5 rounded bg-primary-container text-on-primary text-xs font-bold">Críticos</span>
+            </div>
+            <div class="mt-2 text-xs text-on-surface-variant flex items-center justify-between">
+              <span>SLA Campus &lt; 2h</span>
+              <span class="font-semibold text-primary">Atención Prioritaria</span>
+            </div>
+            <div class="absolute bottom-0 left-0 right-0 h-1 bg-primary-container"></div>
+          </div>
+
+          <!-- Campus SLA Performance -->
+          <div class="relative overflow-hidden rounded-xl bg-surface-container-lowest p-4 shadow-sm border border-surface-container">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs uppercase tracking-wider text-on-surface-variant font-semibold">Tiempo Promedio</span>
+              <span class="p-1 rounded-lg bg-tertiary-fixed text-on-tertiary-fixed-variant material-symbols-outlined text-base">timer</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="font-display text-3xl text-on-surface font-bold">1.2<span class="text-lg font-normal">h</span></span>
+              <span class="text-xs text-emerald-600 font-medium">-25% vs meta</span>
+            </div>
+            <div class="mt-2 text-xs text-on-surface-variant flex items-center justify-between">
+              <span>Resolución de incidentes</span>
+              <span class="font-semibold text-tertiary">Óptimo NOC</span>
+            </div>
+            <div class="absolute bottom-0 left-0 right-0 h-1 bg-tertiary"></div>
+          </div>
+        </div>
+
+        <!-- Categories Live Breakdown Bar (GET /api/incidents/stats/by-category) -->
+        <div class="mt-4 p-3 rounded-xl bg-surface-container-lowest border border-surface-container flex flex-wrap items-center justify-between gap-3 shadow-sm">
+          <div class="flex items-center gap-2 text-xs font-semibold text-on-surface-variant">
+            <span class="material-symbols-outlined text-sm text-primary">category</span>
+            <span>Métricas por Categoría (GET /api/incidents/stats/by-category):</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-2" id="categoryChipsContainer">
+            <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-surface-container text-on-surface-variant">Cargando categorías...</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Interactive Control Deck & Filters -->
+      <section class="w-full mb-4">
+        <div class="rounded-xl bg-surface-container-lowest p-4 shadow-sm border border-surface-container flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+          <!-- Search & Selects -->
+          <div class="flex-1 flex flex-col sm:flex-row items-center gap-3">
+            <!-- Search Input -->
+            <div class="relative w-full sm:max-w-xs">
+              <span class="material-symbols-outlined absolute left-3 top-2.5 text-on-surface-variant text-lg">search</span>
+              <input class="w-full pl-9 pr-8 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/20 border border-surface-container" id="searchInput" placeholder="Buscar por ID, título, aula..." type="text">
+              <button class="hidden absolute right-2.5 top-2.5 text-on-surface-variant hover:text-on-surface" id="btnClearSearch">
+                <span class="material-symbols-outlined text-base">close</span>
+              </button>
+            </div>
+
+            <!-- Filter: Status -->
+            <div class="w-full sm:w-auto flex items-center bg-surface-container-low rounded-lg p-1 border border-surface-container">
+              <button class="filter-status-btn px-3 py-1.5 rounded-md text-xs font-semibold bg-surface-container-lowest text-on-surface shadow-sm transition" data-filter-status="ALL">Todos</button>
+              <button class="filter-status-btn px-3 py-1.5 rounded-md text-xs font-medium text-on-surface-variant hover:text-on-surface transition" data-filter-status="Active">Activos</button>
+              <button class="filter-status-btn px-3 py-1.5 rounded-md text-xs font-medium text-on-surface-variant hover:text-on-surface transition" data-filter-status="Inactive">Inactivos</button>
+            </div>
+
+            <!-- Filter: Category -->
+            <select class="w-full sm:w-auto bg-surface-container-low text-xs text-on-surface px-3 py-2 rounded-lg focus:outline-none cursor-pointer border border-surface-container" id="categoryFilter">
+              <option value="ALL">Todas las Categorías</option>
+              <option value="Redes">Redes</option>
+              <option value="Hardware">Hardware</option>
+              <option value="Software">Software</option>
+              <option value="Seguridad">Seguridad</option>
+              <option value="Infraestructura">Infraestructura</option>
+              <option value="General">General</option>
+            </select>
+
+            <!-- Filter: Priority -->
+            <select class="w-full sm:w-auto bg-surface-container-low text-xs text-on-surface px-3 py-2 rounded-lg focus:outline-none cursor-pointer border border-surface-container" id="priorityFilter">
+              <option value="ALL">Todas las Prioridades</option>
+              <option value="High">Alta (High)</option>
+              <option value="Medium">Media (Medium)</option>
+              <option value="Low">Baja (Low)</option>
+            </select>
+          </div>
+
+          <!-- Primary Action Buttons & View Toggles -->
+          <div class="flex items-center gap-2 justify-end">
+            <div class="flex items-center bg-surface-container-low rounded-lg p-1 border border-surface-container">
+              <button class="view-toggle-btn p-1.5 rounded-md bg-surface-container-lowest text-primary shadow-sm" id="btnViewCards" title="Vista Tarjetas">
+                <span class="material-symbols-outlined text-base">grid_view</span>
+              </button>
+              <button class="view-toggle-btn p-1.5 rounded-md text-on-surface-variant hover:text-on-surface" id="btnViewTable" title="Vista Tabla Rápida">
+                <span class="material-symbols-outlined text-base">format_list_bulleted</span>
+              </button>
+            </div>
+
+            <button class="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary hover:bg-primary-container text-white font-semibold text-sm transition shadow-sm" id="btnOpenCreate">
+              <span class="material-symbols-outlined text-lg">add_circle</span>
+              <span>Nuevo Incidente</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Main Incident Workspace -->
+      <section class="w-full">
+        <!-- Cards Grid View -->
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="cardsContainer">
+          <!-- Dynamically populated from backend -->
+        </div>
+
+        <!-- Table View (Hidden by default) -->
+        <div class="hidden overflow-x-auto rounded-xl bg-surface-container-lowest shadow-sm border border-surface-container" id="tableContainer">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-surface-container-low text-xs uppercase text-on-surface-variant border-b border-surface-container">
+              <tr>
+                <th class="py-3 px-4">Ticket</th>
+                <th class="py-3 px-4">Título & Ubicación</th>
+                <th class="py-3 px-4">Categoría</th>
+                <th class="py-3 px-4">Estado</th>
+                <th class="py-3 px-4">Prioridad</th>
+                <th class="py-3 px-4">Notas / Resolución</th>
+                <th class="py-3 px-4">Fecha</th>
+                <th class="py-3 px-4 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody" class="divide-y divide-surface-container">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Empty State -->
+        <div class="hidden flex-col items-center justify-center p-12 text-center rounded-xl bg-surface-container-lowest border border-dashed border-surface-container" id="emptyState">
+          <span class="material-symbols-outlined text-5xl text-outline mb-2">content_paste_off</span>
+          <h3 class="font-headline-sm text-base text-on-surface font-semibold">No se encontraron incidentes</h3>
+          <p class="text-xs text-on-surface-variant mt-1 max-w-sm">No hay registros que coincidan con los filtros seleccionados o el servidor está vacío.</p>
+          <button class="mt-4 px-4 py-1.5 rounded-lg bg-primary-container text-white text-xs font-semibold" id="btnResetFilters">Limpiar Filtros</button>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Floating Toast Notification -->
+  <div class="fixed top-20 right-6 z-50 transform transition-all duration-300 pointer-events-none flex items-center gap-3 px-4 py-3 rounded-xl bg-surface-container-lowest shadow-xl max-w-md translate-x-full opacity-0 border border-surface-container" id="liveToast">
+    <div class="p-2 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center" id="toastIconBg">
+      <span class="material-symbols-outlined text-xl" id="toastIcon">check_circle</span>
+    </div>
+    <div class="flex flex-col">
+      <span class="font-headline-sm text-sm text-on-surface font-bold" id="toastTitle">Acción Completada</span>
+      <span class="font-body-sm text-xs text-on-surface-variant" id="toastMessage">Sincronizado con backend.</span>
+    </div>
+  </div>
+
+  <!-- Modal: Login UTP TI -->
+  <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4" id="loginModal">
+    <div class="relative w-full max-w-md rounded-2xl bg-surface-container-lowest p-6 shadow-2xl flex flex-col border border-surface-container">
+      <div class="flex items-center justify-between pb-3 border-b border-surface-container">
+        <div class="flex items-center gap-3">
+          <div class="p-2.5 rounded-xl bg-primary text-white">
+            <span class="material-symbols-outlined text-2xl">lock</span>
+          </div>
+          <div>
+            <h2 class="font-headline-md text-lg text-on-surface font-bold">Autenticación UTP TI</h2>
+            <p class="text-xs text-on-surface-variant">POST /api/auth/login • Mesa Operativa</p>
+          </div>
+        </div>
+        <button class="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant" id="btnCloseLogin">
+          <span class="material-symbols-outlined text-xl">close</span>
+        </button>
+      </div>
+
+      <form class="py-4 space-y-4" id="loginForm">
+        <div id="loginErrorMsg" class="hidden p-3 rounded-lg bg-red-100 text-red-700 text-xs font-semibold"></div>
+
+        <div>
+          <label class="block text-xs font-semibold text-on-surface mb-1">Usuario o Correo Institucional <span class="text-primary">*</span></label>
+          <input class="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:ring-2 focus:ring-primary/20 focus:outline-none" id="loginUsername" placeholder="ej. admin o admin@utp.edu.pe" required type="text" value="admin">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-on-surface mb-1">Contraseña <span class="text-primary">*</span></label>
+          <input class="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:ring-2 focus:ring-primary/20 focus:outline-none" id="loginPassword" placeholder="••••••••" required type="password" value="admin123">
+        </div>
+
+        <!-- Fast fill credentials chips -->
+        <div class="p-3 rounded-lg bg-surface-container-low border border-surface-container">
+          <span class="block text-[11px] font-semibold text-on-surface-variant mb-1.5 uppercase">Cuentas Pre-configuradas UTP:</span>
+          <div class="flex flex-wrap gap-1.5">
+            <button type="button" class="btn-demo-creds px-2 py-1 rounded bg-white hover:bg-surface-container text-[11px] font-medium border border-surface-container text-on-surface" data-u="admin" data-p="admin123">Admin TI (admin123)</button>
+            <button type="button" class="btn-demo-creds px-2 py-1 rounded bg-white hover:bg-surface-container text-[11px] font-medium border border-surface-container text-on-surface" data-u="supervisor" data-p="utp2025">Supervisor (utp2025)</button>
+            <button type="button" class="btn-demo-creds px-2 py-1 rounded bg-white hover:bg-surface-container text-[11px] font-medium border border-surface-container text-on-surface" data-u="operador" data-p="operador123">Operador (operador123)</button>
+          </div>
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button class="w-full py-2.5 rounded-lg bg-primary hover:bg-primary-container text-white font-bold text-sm shadow-md transition" type="submit" id="btnLoginSubmit">
+            Iniciar Sesión
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Cambiar Servidor API Host -->
+  <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4" id="hostModal">
+    <div class="relative w-full max-w-md rounded-2xl bg-surface-container-lowest p-6 shadow-2xl flex flex-col border border-surface-container">
+      <div class="flex items-center justify-between pb-3 border-b border-surface-container">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-tertiary text-xl">dns</span>
+          <h2 class="font-headline-md text-base text-on-surface font-bold">Configuración de Servidor Backend</h2>
+        </div>
+        <button class="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant" id="btnCloseHost">
+          <span class="material-symbols-outlined text-xl">close</span>
+        </button>
+      </div>
+
+      <div class="py-4 space-y-3">
+        <label class="block text-xs font-semibold text-on-surface">URL Base de la API:</label>
+        <input class="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm font-mono text-on-surface border border-surface-container focus:ring-2 focus:ring-primary/20 focus:outline-none" id="inputCustomHost" type="text">
+        <div class="flex gap-2">
+          <button type="button" class="flex-1 py-1.5 px-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-xs font-semibold text-on-surface" id="btnPresetLocal8081">Local (8081)</button>
+          <button type="button" class="flex-1 py-1.5 px-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-xs font-semibold text-on-surface" id="btnPresetLocal8080">Local (8080)</button>
+          <button type="button" class="flex-1 py-1.5 px-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-xs font-semibold text-on-surface" id="btnPresetRender">Render Prod</button>
+        </div>
+      </div>
+
+      <div class="pt-2 border-t border-surface-container flex justify-end gap-2">
+        <button class="px-4 py-2 rounded-lg bg-primary hover:bg-primary-container text-white text-xs font-bold" id="btnSaveHost">Guardar y Reconectar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Crear Nuevo Incidente (POST /api/incidents) -->
+  <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4" id="createModal">
+    <div class="relative w-full max-w-xl rounded-2xl bg-surface-container-lowest p-6 shadow-2xl flex flex-col border border-surface-container">
+      <div class="flex items-center justify-between pb-3 border-b border-surface-container">
+        <div class="flex items-center gap-2">
+          <div class="p-2 rounded-lg bg-primary text-white">
+            <span class="material-symbols-outlined text-xl">add_alert</span>
+          </div>
+          <div>
+            <h2 class="font-headline-md text-lg text-on-surface font-bold">Registrar Incidente TI</h2>
+            <p class="text-xs text-on-surface-variant">POST /api/incidents • Mesa de Servicio UTP</p>
+          </div>
+        </div>
+        <button class="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant" id="btnCloseCreate">
+          <span class="material-symbols-outlined text-xl">close</span>
+        </button>
+      </div>
+
+      <form class="py-4 space-y-3" id="createIncidentForm">
+        <div>
+          <label class="block text-xs font-semibold text-on-surface mb-1">Título del Incidente <span class="text-primary">*</span></label>
+          <input class="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:outline-none focus:ring-2 focus:ring-primary/20" id="newTitle" placeholder="ej. Falla en Access Point Piso 3 Pabellón B" required type="text">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-on-surface mb-1">Descripción Técnica <span class="text-primary">*</span></label>
+          <textarea class="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:outline-none focus:ring-2 focus:ring-primary/20" id="newDescription" placeholder="Detalle de equipos, anomalía observada y alcance..." required rows="3"></textarea>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-on-surface mb-1">Categoría</label>
+            <select class="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-surface-container focus:outline-none cursor-pointer" id="newCategory">
+              <option value="Redes" selected>Redes</option>
+              <option value="Hardware">Hardware</option>
+              <option value="Software">Software</option>
+              <option value="Seguridad">Seguridad</option>
+              <option value="Infraestructura">Infraestructura</option>
+              <option value="General">General</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-on-surface mb-1">Prioridad</label>
+            <select class="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-surface-container focus:outline-none cursor-pointer" id="newPriority">
+              <option value="High" selected>High (Crítico)</option>
+              <option value="Medium">Medium (Medio)</option>
+              <option value="Low">Low (Bajo)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-on-surface mb-1">Estado</label>
+            <select class="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-surface-container focus:outline-none cursor-pointer" id="newStatus">
+              <option value="Active" selected>Active (En atención)</option>
+              <option value="Inactive">Inactive (Cerrado)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-on-surface mb-1">Sede / Ubicación UTP</label>
+          <input class="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:outline-none focus:ring-2 focus:ring-primary/20" id="newLocation" placeholder="ej. Lima Centro - Pabellón B, Aula 502" type="text" value="Lima Centro - Torre Tecnológica">
+        </div>
+
+        <div class="pt-3 border-t border-surface-container flex items-center justify-end gap-2">
+          <button class="px-4 py-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold" id="btnCancelCreate" type="button">Cancelar</button>
+          <button class="px-5 py-2 rounded-lg bg-primary hover:bg-primary-container text-white text-xs font-bold shadow-md transition" type="submit">Enviar POST Ticket</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Editar Estado (PATCH /api/incidents/{id}/status) -->
+  <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4" id="statusModal">
+    <div class="relative w-full max-w-lg rounded-2xl bg-surface-container-lowest p-6 shadow-2xl flex flex-col border border-surface-container">
+      <div class="flex items-center justify-between pb-3 border-b border-surface-container">
+        <div class="flex items-center gap-2">
+          <div class="p-2 rounded-lg bg-amber-500/10 text-amber-600">
+            <span class="material-symbols-outlined text-xl">edit_note</span>
+          </div>
+          <div>
+            <h2 class="font-headline-md text-base text-on-surface font-bold">Actualizar Estado</h2>
+            <p class="text-xs text-on-surface-variant" id="patchModalSubtitle">PATCH /api/incidents/{id}/status</p>
+          </div>
+        </div>
+        <button class="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant" id="btnCloseStatus">
+          <span class="material-symbols-outlined text-xl">close</span>
+        </button>
+      </div>
+
+      <form class="py-4 space-y-4" id="patchStatusForm">
+        <input id="patchIncidentId" type="hidden">
+        <div>
+          <span class="block text-xs font-semibold text-on-surface mb-2">Seleccionar Nuevo Estado:</span>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="cursor-pointer flex items-center gap-2 p-3 rounded-xl bg-surface-container-low border border-surface-container has-[:checked]:bg-emerald-500/10 has-[:checked]:border-emerald-500 transition">
+              <input class="accent-emerald-600" id="radioStatusActive" name="targetStatus" type="radio" value="Active">
+              <div class="flex flex-col">
+                <span class="text-xs font-bold text-emerald-800">Active</span>
+                <span class="text-[11px] text-on-surface-variant">En curso / Atención</span>
+              </div>
+            </label>
+            <label class="cursor-pointer flex items-center gap-2 p-3 rounded-xl bg-surface-container-low border border-surface-container has-[:checked]:bg-slate-200 has-[:checked]:border-slate-400 transition">
+              <input class="accent-slate-700" id="radioStatusInactive" name="targetStatus" type="radio" value="Inactive">
+              <div class="flex flex-col">
+                <span class="text-xs font-bold text-slate-800">Inactive</span>
+                <span class="text-[11px] text-on-surface-variant">Solucionado / Cerrado</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-on-surface mb-1">Razones del rechazo / Notas de resolución</label>
+          <textarea class="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:outline-none focus:ring-2 focus:ring-amber-500/20" id="patchReason" placeholder="ej. Resuelto tras reinicio de switch POE..." rows="3"></textarea>
+        </div>
+
+        <div class="pt-3 border-t border-surface-container flex items-center justify-end gap-2">
+          <button class="px-4 py-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold" id="btnCancelStatus" type="button">Cancelar</button>
+          <button class="px-5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md transition" type="submit">Ejecutar PATCH</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Detalle Extendido (GET /api/incidents/{id}) -->
+  <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4" id="detailModal">
+    <div class="relative w-full max-w-xl rounded-2xl bg-surface-container-lowest p-6 shadow-2xl flex flex-col border border-surface-container">
+      <div class="flex items-center justify-between pb-3 border-b border-surface-container">
+        <div class="flex items-center gap-2">
+          <div class="p-2 rounded-lg bg-tertiary-fixed text-on-tertiary-fixed-variant">
+            <span class="material-symbols-outlined text-xl">info</span>
+          </div>
+          <div>
+            <h2 class="font-headline-md text-base text-on-surface font-bold" id="detailTicketId">Ticket #INC-001</h2>
+            <p class="text-xs text-on-surface-variant">Detalle inspeccionado vía GET /api/incidents/{id}</p>
+          </div>
+        </div>
+        <button class="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant" id="btnCloseDetail">
+          <span class="material-symbols-outlined text-xl">close</span>
+        </button>
+      </div>
+
+      <div class="py-4 space-y-3">
+        <div>
+          <span class="text-xs uppercase text-on-surface-variant font-semibold">Título</span>
+          <h3 class="font-headline-sm text-sm text-on-surface font-bold mt-0.5" id="detailTitle">--</h3>
+        </div>
+
+        <div>
+          <span class="text-xs uppercase text-on-surface-variant font-semibold">Descripción Técnica</span>
+          <p class="text-xs text-on-surface mt-0.5 p-3 rounded-lg bg-surface-container-low border border-surface-container" id="detailDescription">--</p>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <span class="text-[11px] uppercase text-on-surface-variant font-semibold">Categoría</span>
+            <div class="mt-1" id="detailCategoryBadge">--</div>
+          </div>
+          <div>
+            <span class="text-[11px] uppercase text-on-surface-variant font-semibold">Estado</span>
+            <div class="mt-1" id="detailStatusBadge">--</div>
+          </div>
+          <div>
+            <span class="text-[11px] uppercase text-on-surface-variant font-semibold">Prioridad</span>
+            <div class="mt-1" id="detailPriorityBadge">--</div>
+          </div>
+        </div>
+
+        <div>
+          <span class="text-xs uppercase text-on-surface-variant font-semibold">Observaciones / Notas de Cierre</span>
+          <p class="text-xs text-on-surface mt-0.5 p-3 rounded-lg bg-surface-container-low border border-surface-container" id="detailRejection">Ninguna registrada</p>
+        </div>
+
+        <div class="p-2.5 rounded-lg bg-surface-container-low flex flex-col gap-1 text-[11px] text-on-surface-variant border border-surface-container font-mono">
+          <span id="detailCreatedAt">Created: --</span>
+          <span id="detailLocation">Ubicación: --</span>
+        </div>
+      </div>
+
+      <div class="pt-3 border-t border-surface-container flex justify-end">
+        <button class="px-4 py-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold" id="btnDismissDetail">Cerrar Detalle</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Schemas & Docs Inspector -->
+  <div class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4" id="apiDocsModal">
+    <div class="relative w-full max-w-2xl max-h-[85vh] rounded-2xl bg-surface-container-lowest p-6 shadow-2xl flex flex-col border border-surface-container overflow-hidden">
+      <div class="flex items-center justify-between pb-3 border-b border-surface-container">
+        <div class="flex items-center gap-2">
+          <div class="p-2 rounded-lg bg-primary text-white">
+            <span class="material-symbols-outlined text-xl">api</span>
+          </div>
+          <div>
+            <h2 class="font-headline-md text-base text-on-surface font-bold">Catálogo de Endpoints REST UTP</h2>
+            <p class="text-xs text-on-surface-variant" id="docsModalSubtitle">Spring Boot 3 + OpenAPI 3.0</p>
+          </div>
+        </div>
+        <button class="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant" id="btnCloseDocs">
+          <span class="material-symbols-outlined text-xl">close</span>
+        </button>
+      </div>
+
+      <div class="py-4 space-y-3 overflow-y-auto max-h-[60vh] pr-1">
+        <!-- Auth -->
+        <div class="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded font-mono text-xs font-bold bg-primary text-white">POST</span>
+            <code class="font-mono text-xs font-bold text-on-surface">/api/auth/login</code>
+            <span class="text-xs text-emerald-600 font-semibold">200 OK</span>
+          </div>
+          <p class="text-xs text-on-surface-variant mt-1">Autenticación de operadores y administradores TI (JWT/Token).</p>
+        </div>
+
+        <!-- Stats Total -->
+        <div class="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
+            <code class="font-mono text-xs font-bold text-on-surface">/api/incidents/stats</code>
+            <span class="text-xs text-emerald-600 font-semibold">200 OK</span>
+          </div>
+          <p class="text-xs text-on-surface-variant mt-1">Métricas consolidadas: total, activos, inactivos, severidad y categorías.</p>
+        </div>
+
+        <!-- Stats by category -->
+        <div class="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
+            <code class="font-mono text-xs font-bold text-on-surface">/api/incidents/stats/by-category</code>
+            <span class="text-xs text-emerald-600 font-semibold">200 OK</span>
+          </div>
+          <p class="text-xs text-on-surface-variant mt-1">Total de incidencias agrupadas por categoría (Redes, Hardware, etc.).</p>
+        </div>
+
+        <!-- CRUD Incidents -->
+        <div class="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded font-mono text-xs font-bold bg-emerald-600 text-white">POST</span>
+            <code class="font-mono text-xs font-bold text-on-surface">/api/incidents</code>
+            <span class="text-xs text-emerald-600 font-semibold">200 OK</span>
+          </div>
+          <p class="text-xs text-on-surface-variant mt-1">Creación de ticket con título, descripción, severidad, categoría y ubicación.</p>
+        </div>
+
+        <div class="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded font-mono text-xs font-bold bg-amber-500 text-white">PATCH</span>
+            <code class="font-mono text-xs font-bold text-on-surface">/api/incidents/{id}/status</code>
+            <span class="text-xs text-emerald-600 font-semibold">200 OK</span>
+          </div>
+          <p class="text-xs text-on-surface-variant mt-1">Actualiza estado (Active / Inactive) y notas de rechazo o resolución.</p>
+        </div>
+
+        <div class="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded font-mono text-xs font-bold bg-red-600 text-white">DELETE</span>
+            <code class="font-mono text-xs font-bold text-on-surface">/api/incidents/{id}</code>
+            <span class="text-xs text-emerald-600 font-semibold">204 No Content</span>
+          </div>
+          <p class="text-xs text-on-surface-variant mt-1">Elimina permanentemente un incidente en la base de datos.</p>
+        </div>
+      </div>
+
+      <div class="pt-3 border-t border-surface-container flex justify-end">
+        <button class="px-4 py-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold" id="btnDismissDocs">Entendido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="w-full bg-surface-container-lowest border-t border-surface-container py-6">
+    <div class="w-full max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-on-surface-variant">
+      <div class="flex items-center gap-3">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/5/50/Utplogonuevo.svg" alt="UTP Logo" class="h-6 w-auto object-contain">
+        <span>© 2026 Universidad Tecnológica del Perú • Mesa Operativa de Incidentes TI</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <span>Mesa de Ayuda UTP</span>
+        <span>•</span>
+        <span>Soporte NOC Campus</span>
+        <span>•</span>
+        <span class="font-mono text-primary font-semibold" id="footerHostStatus">API Online</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Application Logic & Backend Integration -->
+  <script>
+    // ===== CONFIGURACIÓN Y ESTADO CENTRAL =====
+    const DEFAULT_LOCAL_URL = "http://localhost:8081";
+    const DEFAULT_RENDER_URL = "https://api-incident.onrender.com";
+
+    function getInitialApiUrl() {
+      const stored = localStorage.getItem("utp_api_url");
+      if (stored) return stored;
+      if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+        return DEFAULT_LOCAL_URL;
+      }
+      return DEFAULT_RENDER_URL;
+    }
+
+    let API_BASE_URL = getInitialApiUrl();
+    let incidentStore = [];
+    let statsCache = null;
+
+    let activeStatusFilter = "ALL";
+    let activePriorityFilter = "ALL";
+    let activeCategoryFilter = "ALL";
+    let currentSearchQuery = "";
+    let currentView = "cards"; // "cards" | "table"
+
+    // Toast Helper
+    function showToast(title, message, isSuccess = true) {
+      const toast = document.getElementById("liveToast");
+      const toastTitle = document.getElementById("toastTitle");
+      const toastMsg = document.getElementById("toastMessage");
+      const toastIcon = document.getElementById("toastIcon");
+      const toastIconBg = document.getElementById("toastIconBg");
+
+      toastTitle.textContent = title;
+      toastMsg.textContent = message;
+
+      if (isSuccess) {
+        toastIcon.textContent = "check_circle";
+        toastIconBg.className = "p-2 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center";
+      } else {
+        toastIcon.textContent = "error";
+        toastIconBg.className = "p-2 rounded-lg bg-red-100 text-red-700 flex items-center justify-center";
+      }
+
+      toast.classList.remove("translate-x-full", "opacity-0");
+      toast.classList.add("translate-x-0", "opacity-100");
+
+      setTimeout(() => {
+        toast.classList.remove("translate-x-0", "opacity-100");
+        toast.classList.add("translate-x-full", "opacity-0");
+      }, 3500);
+    }
+
+    // Format Timestamp
+    function formatTimestamp(isoString) {
+      if (!isoString) return "Fecha no registrada";
+      try {
+        const date = new Date(isoString);
+        return date.toLocaleString('es-PE', {
+          year: 'numeric',
+          month: 'short',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      } catch (e) {
+        return isoString;
+      }
+    }
+
+    // Category Badges Styling Helper
+    function getCategoryBadge(category) {
+      const cat = category || "General";
+      const colors = {
+        "Redes": "bg-sky-100 text-sky-800 border-sky-200",
+        "Hardware": "bg-amber-100 text-amber-800 border-amber-200",
+        "Software": "bg-purple-100 text-purple-800 border-purple-200",
+        "Seguridad": "bg-rose-100 text-rose-800 border-rose-200",
+        "Infraestructura": "bg-emerald-100 text-emerald-800 border-emerald-200",
+        "General": "bg-slate-100 text-slate-700 border-slate-200"
+      };
+      const cls = colors[cat] || colors["General"];
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${cls}">${cat}</span>`;
+    }
+
+    // Priority Badge Styling
+    function getPriorityBadge(priority) {
+      const p = priority || "Medium";
+      if (p === "High" || p === "HIGH") {
+        return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-primary text-white">High</span>`;
+      }
+      if (p === "Medium" || p === "MEDIUM") {
+        return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-white">Medium</span>`;
+      }
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-600 text-white">Low</span>`;
+    }
+
+    // Status Badge Styling
+    function getStatusBadge(status) {
+      const isActive = !status || status === "Active" || status === "OPEN" || status === "IN_PROGRESS";
+      if (isActive) {
+        return `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> Active
+        </span>`;
+      }
+      return `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-surface-container text-on-surface-variant">
+        <span class="w-1.5 h-1.5 rounded-full bg-outline"></span> Inactive
+      </span>`;
+    }
+
+    // ===== CONEXIÓN BACKEND / API FETCH =====
+
+    async function fetchIncidents() {
+      try {
+        const resp = await fetch(`${API_BASE_URL}/api/incidents`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        incidentStore = data.map(item => ({
+          id: item.id,
+          ticketCode: item.ticketCode || `INC-${1000 + item.id}`,
+          title: item.title,
+          description: item.description,
+          category: item.category || "General",
+          location: item.location || "Campus UTP",
+          status: item.status || "Active",
+          priority: item.priority || item.severity || "Medium",
+          severity: item.severity || item.priority || "Medium",
+          rejectionReason: item.message || "",
+          message: item.message || "",
+          createdAt: item.createdAt || new Date().toISOString()
+        }));
+        updateConnectionStatus(true);
+        refreshWorkspace();
+      } catch (err) {
+        console.error("Error al obtener incidencias:", err);
+        updateConnectionStatus(false);
+      }
+    }
+
+    async function fetchStats() {
+      try {
+        const resp = await fetch(`${API_BASE_URL}/api/incidents/stats`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const stats = await resp.json();
+        statsCache = stats;
+
+        // Actualizar KPIs superiores
+        document.getElementById("statTotal").textContent = stats.total !== undefined ? stats.total : incidentStore.length;
+        document.getElementById("statActive").textContent = stats.active !== undefined ? stats.active : 0;
+        document.getElementById("statInactive").textContent = stats.inactive !== undefined ? stats.inactive : 0;
+
+        const total = stats.total || 1;
+        const actPct = Math.round(((stats.active || 0) / total) * 100);
+        const inactPct = Math.round(((stats.inactive || 0) / total) * 100);
+        document.getElementById("statActivePct").textContent = `${actPct}%`;
+        document.getElementById("statInactivePct").textContent = `${inactPct}%`;
+
+        // Alta prioridad
+        const highCount = (stats.bySeverity && (stats.bySeverity.High || stats.bySeverity.HIGH)) || 0;
+        document.getElementById("statHigh").textContent = highCount;
+
+        // Renderizar desglose de categorías
+        renderCategoryChips(stats.byCategory || {});
+      } catch (err) {
+        console.warn("Fallo al obtener estadísticas del servidor:", err);
+        // Fallback local desde incidentStore
+        const total = incidentStore.length;
+        const active = incidentStore.filter(i => i.status === "Active" || i.status === "OPEN").length;
+        const inactive = total - active;
+        const high = incidentStore.filter(i => (i.priority || "").toUpperCase() === "HIGH").length;
+
+        document.getElementById("statTotal").textContent = total;
+        document.getElementById("statActive").textContent = active;
+        document.getElementById("statInactive").textContent = inactive;
+        document.getElementById("statHigh").textContent = high;
+
+        // Local category calculation
+        const localCats = {};
+        incidentStore.forEach(i => {
+          const c = i.category || "General";
+          localCats[c] = (localCats[c] || 0) + 1;
+        });
+        renderCategoryChips(localCats);
+      }
+    }
+
+    function renderCategoryChips(byCategory) {
+      const container = document.getElementById("categoryChipsContainer");
+      const entries = Object.entries(byCategory);
+      if (entries.length === 0) {
+        container.innerHTML = `<span class="text-xs text-on-surface-variant font-medium">Sin datos de categorías</span>`;
+        return;
+      }
+      container.innerHTML = entries.map(([cat, count]) => {
+        return `<button onclick="filterByCategory('${cat}')" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-container-low hover:bg-surface-container border border-surface-container text-on-surface transition flex items-center gap-1.5 cursor-pointer">
+          <span>${cat}</span>
+          <span class="px-1.5 py-0.2 rounded-full bg-primary/10 text-primary text-[10px] font-bold">${count}</span>
+        </button>`;
+      }).join("");
+    }
+
+    window.filterByCategory = function(cat) {
+      const select = document.getElementById("categoryFilter");
+      select.value = cat;
+      activeCategoryFilter = cat;
+      refreshWorkspace();
+    };
+
+    function updateConnectionStatus(isOnline) {
+      const dot = document.getElementById("backendPingDot");
+      const label = document.getElementById("apiHostLabel");
+      const pill = document.getElementById("connStatusPill");
+      const footerStatus = document.getElementById("footerHostStatus");
+
+      label.textContent = API_BASE_URL.replace(/^https?:\/\//, "");
+
+      if (isOnline) {
+        dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse";
+        pill.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-700 text-xs font-semibold";
+        pill.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span><span>REST API Conectada • OAS 3.0</span>`;
+        footerStatus.textContent = `Online: ${API_BASE_URL.replace(/^https?:\/\//, "")}`;
+        footerStatus.className = "font-mono text-emerald-600 font-semibold";
+      } else {
+        dot.className = "w-2.5 h-2.5 rounded-full bg-red-500";
+        pill.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/10 text-red-700 text-xs font-semibold";
+        pill.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span><span>Sin conexión al servidor</span>`;
+        footerStatus.textContent = `Desconectado (${API_BASE_URL.replace(/^https?:\/\//, "")})`;
+        footerStatus.className = "font-mono text-error font-semibold";
+      }
+    }
+
+    // ===== RENDER DEL WORKSPACE & FILTROS =====
+
+    function refreshWorkspace() {
+      const filtered = incidentStore.filter(item => {
+        const itemActive = !item.status || item.status === "Active" || item.status === "OPEN" || item.status === "IN_PROGRESS";
+        const statusVal = itemActive ? "Active" : "Inactive";
+        const matchStatus = activeStatusFilter === "ALL" || statusVal === activeStatusFilter;
+
+        const itemPrio = (item.priority || item.severity || "Medium").toUpperCase();
+        const matchPriority = activePriorityFilter === "ALL" || itemPrio === activePriorityFilter.toUpperCase();
+
+        const itemCat = (item.category || "General").toLowerCase();
+        const matchCategory = activeCategoryFilter === "ALL" || itemCat === activeCategoryFilter.toLowerCase();
+
+        const q = currentSearchQuery.toLowerCase();
+        const matchQuery = !q ||
+          (item.title && item.title.toLowerCase().includes(q)) ||
+          (item.description && item.description.toLowerCase().includes(q)) ||
+          (item.ticketCode && item.ticketCode.toLowerCase().includes(q)) ||
+          (item.location && item.location.toLowerCase().includes(q)) ||
+          (item.rejectionReason && item.rejectionReason.toLowerCase().includes(q));
+
+        return matchStatus && matchPriority && matchCategory && matchQuery;
+      });
+
+      const cardsContainer = document.getElementById("cardsContainer");
+      const tableContainer = document.getElementById("tableContainer");
+      const tableBody = document.getElementById("tableBody");
+      const emptyState = document.getElementById("emptyState");
+
+      if (filtered.length === 0) {
+        cardsContainer.innerHTML = "";
+        tableBody.innerHTML = "";
+        cardsContainer.classList.add("hidden");
+        tableContainer.classList.add("hidden");
+        emptyState.classList.remove("hidden");
+        emptyState.classList.add("flex");
+        return;
+      }
+
+      emptyState.classList.add("hidden");
+      emptyState.classList.remove("flex");
+
+      if (currentView === "cards") {
+        cardsContainer.classList.remove("hidden");
+        tableContainer.classList.add("hidden");
+      } else {
+        cardsContainer.classList.add("hidden");
+        tableContainer.classList.remove("hidden");
+      }
+
+      // Render Cards
+      cardsContainer.innerHTML = filtered.map(item => {
+        const statusBadge = getStatusBadge(item.status);
+        const prioBadge = getPriorityBadge(item.priority || item.severity);
+        const catBadge = getCategoryBadge(item.category);
+
+        const rejectionBox = item.rejectionReason
+          ? `<div class="mt-2.5 p-2 rounded-lg bg-surface-container-low text-xs flex items-start gap-1.5 border border-surface-container">
+               <span class="font-semibold text-on-surface-variant shrink-0">Observaciones:</span>
+               <span class="text-on-surface break-words">${item.rejectionReason}</span>
+             </div>`
+          : "";
+
+        return `
+          <div class="relative flex flex-col justify-between rounded-xl bg-surface-container-lowest p-4 shadow-sm hover:shadow-md transition border border-surface-container">
+            <div>
+              <div class="flex items-start justify-between gap-2 mb-1">
+                <div>
+                  <span class="font-mono text-xs font-bold text-primary">${item.ticketCode}</span>
+                  <h3 class="font-headline-sm text-sm text-on-surface font-bold hover:text-primary transition cursor-pointer mt-0.5 line-clamp-1" onclick="handleViewDetail(${item.id})">
+                    ${item.title}
+                  </h3>
+                </div>
+                <div class="flex items-center gap-1 shrink-0">
+                  ${statusBadge}
+                  ${prioBadge}
+                </div>
+              </div>
+
+              <div class="mt-2 text-xs text-on-surface line-clamp-2">
+                <span class="font-semibold text-on-surface-variant">Descripción:</span> ${item.description}
+              </div>
+
+              ${rejectionBox}
+
+              <div class="mt-3 flex items-center justify-between text-[11px] text-outline font-mono pt-2 border-t border-surface-container">
+                <div class="flex items-center gap-1">
+                  ${catBadge}
+                </div>
+                <span class="text-on-surface-variant truncate max-w-[130px]" title="${item.location}">${item.location || 'Campus UTP'}</span>
+              </div>
+            </div>
+
+            <!-- Endpoint Action Bar -->
+            <div class="mt-3 pt-2 border-t border-surface-container flex items-center justify-between gap-1">
+              <button onclick="handleViewDetail(${item.id})" class="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-tertiary hover:bg-tertiary/10 text-xs font-semibold transition" title="GET /api/incidents/${item.id}">
+                <span class="material-symbols-outlined text-base">visibility</span>
+                <span>Detalle</span>
+              </button>
+
+              <button onclick="handleOpenPatch(${item.id})" class="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-amber-600 hover:bg-amber-500/10 text-xs font-semibold transition" title="PATCH /api/incidents/${item.id}/status">
+                <span class="material-symbols-outlined text-base">edit</span>
+                <span>Estado</span>
+              </button>
+
+              <button onclick="handleDelete(${item.id})" class="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-primary hover:bg-primary/10 text-xs font-semibold transition" title="DELETE /api/incidents/${item.id}">
+                <span class="material-symbols-outlined text-base">delete</span>
+                <span>Eliminar</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      // Render Table Rows
+      tableBody.innerHTML = filtered.map(item => {
+        const statusBadge = getStatusBadge(item.status);
+        const prioBadge = getPriorityBadge(item.priority || item.severity);
+        const catBadge = getCategoryBadge(item.category);
+
+        return `
+          <tr class="hover:bg-surface-container-low transition">
+            <td class="py-3 px-4 font-mono font-bold text-primary">${item.ticketCode}</td>
+            <td class="py-3 px-4">
+              <div class="font-bold text-on-surface">${item.title}</div>
+              <div class="text-on-surface-variant text-xs">${item.location || 'Campus UTP'}</div>
+            </td>
+            <td class="py-3 px-4">${catBadge}</td>
+            <td class="py-3 px-4">${statusBadge}</td>
+            <td class="py-3 px-4">${prioBadge}</td>
+            <td class="py-3 px-4 text-on-surface-variant text-xs max-w-xs truncate">${item.rejectionReason || '—'}</td>
+            <td class="py-3 px-4 font-mono text-xs text-outline">${formatTimestamp(item.createdAt)}</td>
+            <td class="py-3 px-4 text-right">
+              <div class="inline-flex items-center gap-1">
+                <button onclick="handleViewDetail(${item.id})" class="p-1.5 rounded-lg text-tertiary hover:bg-tertiary/10" title="Ver Detalle (GET)">
+                  <span class="material-symbols-outlined text-base">visibility</span>
+                </button>
+                <button onclick="handleOpenPatch(${item.id})" class="p-1.5 rounded-lg text-amber-600 hover:bg-amber-500/10" title="Editar Estado (PATCH)">
+                  <span class="material-symbols-outlined text-base">edit</span>
+                </button>
+                <button onclick="handleDelete(${item.id})" class="p-1.5 rounded-lg text-primary hover:bg-primary/10" title="Eliminar (DELETE)">
+                  <span class="material-symbols-outlined text-base">delete</span>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    // ===== ACCIONES DEL USUARIO (CRUD CON API REAL) =====
+
+    // 1. Ver Detalle (GET /api/incidents/{id})
+    window.handleViewDetail = async function(id) {
+      let item = incidentStore.find(i => i.id === id);
+      try {
+        const resp = await fetch(`${API_BASE_URL}/api/incidents/${id}`);
+        if (resp.ok) {
+          const fresh = await resp.json();
+          item = {
+            id: fresh.id,
+            ticketCode: fresh.ticketCode || `INC-${1000 + fresh.id}`,
+            title: fresh.title,
+            description: fresh.description,
+            category: fresh.category || "General",
+            location: fresh.location || "Campus UTP",
+            status: fresh.status || "Active",
+            priority: fresh.priority || fresh.severity || "Medium",
+            rejectionReason: fresh.message || "",
+            createdAt: fresh.createdAt
+          };
+        }
+      } catch (e) {
+        console.warn("Usando caché local para detalle:", e);
+      }
+
+      if (!item) return;
+
+      document.getElementById("detailTicketId").textContent = `${item.ticketCode} (ID: ${item.id})`;
+      document.getElementById("detailTitle").textContent = item.title;
+      document.getElementById("detailDescription").textContent = item.description;
+      document.getElementById("detailCategoryBadge").innerHTML = getCategoryBadge(item.category);
+      document.getElementById("detailStatusBadge").innerHTML = getStatusBadge(item.status);
+      document.getElementById("detailPriorityBadge").innerHTML = getPriorityBadge(item.priority);
+      document.getElementById("detailRejection").textContent = item.rejectionReason || "Sin observaciones ni notas registradas.";
+      document.getElementById("detailCreatedAt").textContent = `Fecha de Registro: ${formatTimestamp(item.createdAt)}`;
+      document.getElementById("detailLocation").textContent = `Ubicación Sede: ${item.location || 'Campus UTP'}`;
+
+      document.getElementById("detailModal").classList.remove("hidden");
+      document.getElementById("detailModal").classList.add("flex");
+    };
+
+    // 2. Abrir Modal de Estado (PATCH)
+    window.handleOpenPatch = function(id) {
+      const item = incidentStore.find(i => i.id === id);
+      if (!item) return;
+
+      document.getElementById("patchIncidentId").value = item.id;
+      document.getElementById("patchModalSubtitle").textContent = `PATCH /api/incidents/${item.id}/status • ${item.ticketCode}`;
+      document.getElementById("patchReason").value = item.rejectionReason || "";
+
+      const isActive = !item.status || item.status === "Active" || item.status === "OPEN";
+      if (isActive) {
+        document.getElementById("radioStatusActive").checked = true;
+      } else {
+        document.getElementById("radioStatusInactive").checked = true;
+      }
+
+      document.getElementById("statusModal").classList.remove("hidden");
+      document.getElementById("statusModal").classList.add("flex");
+    };
+
+    // 3. Eliminar Incidente (DELETE /api/incidents/{id})
+    window.handleDelete = async function(id) {
+      const item = incidentStore.find(i => i.id === id);
+      const code = item ? item.ticketCode : `#${id}`;
+      const title = item ? item.title : "";
+
+      if (!confirm(`¿Confirmar eliminación del incidente ${code} (${title})?\n\nEndpoint: DELETE /api/incidents/${id}`)) {
+        return;
+      }
+
+      try {
+        const resp = await fetch(`${API_BASE_URL}/api/incidents/${id}`, {
+          method: "DELETE"
+        });
+        if (resp.ok || resp.status === 204) {
+          incidentStore = incidentStore.filter(i => i.id !== id);
+          refreshWorkspace();
+          fetchStats();
+          showToast("Incidente Eliminado", `DELETE /api/incidents/${id} ejecutado correctamente.`, false);
+        } else {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+      } catch (err) {
+        console.error("Error al eliminar incidente:", err);
+        showToast("Error de Conexión", `No se pudo eliminar el incidente: ${err.message}`, false);
+      }
+    };
+
+    // ===== INICIALIZACIÓN DE FORMULARIOS Y EVENTOS =====
+
+    document.addEventListener("DOMContentLoaded", () => {
+      // 1. Verificar Autenticación
+      checkAuthStatus();
+
+      // 2. Cargar datos iniciales
+      fetchIncidents();
+      fetchStats();
+
+      // 3. Búsqueda y filtros
+      const searchInput = document.getElementById("searchInput");
+      const clearSearch = document.getElementById("btnClearSearch");
+
+      searchInput.addEventListener("input", (e) => {
+        currentSearchQuery = e.target.value.trim();
+        clearSearch.classList.toggle("hidden", currentSearchQuery.length === 0);
+        refreshWorkspace();
+      });
+
+      clearSearch.addEventListener("click", () => {
+        searchInput.value = "";
+        currentSearchQuery = "";
+        clearSearch.classList.add("hidden");
+        refreshWorkspace();
+      });
+
+      // Botones de filtro de Estado
+      document.querySelectorAll(".filter-status-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".filter-status-btn").forEach(b => {
+            b.className = "filter-status-btn px-3 py-1.5 rounded-md text-xs font-medium text-on-surface-variant hover:text-on-surface transition";
+          });
+          btn.className = "filter-status-btn px-3 py-1.5 rounded-md text-xs font-semibold bg-surface-container-lowest text-on-surface shadow-sm transition";
+          activeStatusFilter = btn.dataset.filterStatus;
+          refreshWorkspace();
+        });
+      });
+
+      // Filtro de Prioridad
+      document.getElementById("priorityFilter").addEventListener("change", (e) => {
+        activePriorityFilter = e.target.value;
+        refreshWorkspace();
+      });
+
+      // Filtro de Categoría
+      document.getElementById("categoryFilter").addEventListener("change", (e) => {
+        activeCategoryFilter = e.target.value;
+        refreshWorkspace();
+      });
+
+      // Botón Limpiar Filtros
+      document.getElementById("btnResetFilters").addEventListener("click", () => {
+        activeStatusFilter = "ALL";
+        activePriorityFilter = "ALL";
+        activeCategoryFilter = "ALL";
+        currentSearchQuery = "";
+        searchInput.value = "";
+        document.getElementById("priorityFilter").value = "ALL";
+        document.getElementById("categoryFilter").value = "ALL";
+        document.querySelectorAll(".filter-status-btn")[0].click();
+        refreshWorkspace();
+      });
+
+      // Alternar vistas Tarjetas / Tabla
+      document.getElementById("btnViewCards").addEventListener("click", function() {
+        currentView = "cards";
+        this.className = "view-toggle-btn p-1.5 rounded-md bg-surface-container-lowest text-primary shadow-sm";
+        document.getElementById("btnViewTable").className = "view-toggle-btn p-1.5 rounded-md text-on-surface-variant hover:text-on-surface";
+        refreshWorkspace();
+      });
+
+      document.getElementById("btnViewTable").addEventListener("click", function() {
+        currentView = "table";
+        this.className = "view-toggle-btn p-1.5 rounded-md bg-surface-container-lowest text-primary shadow-sm";
+        document.getElementById("btnViewCards").className = "view-toggle-btn p-1.5 rounded-md text-on-surface-variant hover:text-on-surface";
+        refreshWorkspace();
+      });
+
+      // Botón Sincronizar / Refrescar
+      document.getElementById("btnSyncApi").addEventListener("click", () => {
+        fetchIncidents();
+        fetchStats();
+        showToast("Sincronización Completada", `Datos actualizados desde ${API_BASE_URL.replace(/^https?:\/\//, '')}`);
+      });
+
+      // 4. Modal Crear Incidente (POST)
+      const openCreateModal = () => {
+        document.getElementById("createModal").classList.remove("hidden");
+        document.getElementById("createModal").classList.add("flex");
+      };
+      document.getElementById("btnOpenCreate").addEventListener("click", openCreateModal);
+
+      const closeCreateModal = () => {
+        document.getElementById("createModal").classList.add("hidden");
+        document.getElementById("createModal").classList.remove("flex");
+      };
+      document.getElementById("btnCloseCreate").addEventListener("click", closeCreateModal);
+      document.getElementById("btnCancelCreate").addEventListener("click", closeCreateModal);
+
+      document.getElementById("createIncidentForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const title = document.getElementById("newTitle").value.trim();
+        const description = document.getElementById("newDescription").value.trim();
+        const category = document.getElementById("newCategory").value;
+        const priority = document.getElementById("newPriority").value;
+        const status = document.getElementById("newStatus").value;
+        const location = document.getElementById("newLocation").value.trim();
+
+        const payload = {
+          title,
+          description,
+          category,
+          severity: priority,
+          priority,
+          status,
+          location,
+          message: ""
+        };
+
+        try {
+          const resp = await fetch(`${API_BASE_URL}/api/incidents`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const created = await resp.json();
+
+          closeCreateModal();
+          e.target.reset();
+          showToast("POST /api/incidents Exitoso", `Ticket #${created.ticketCode || created.id} registrado correctamente.`);
+          fetchIncidents();
+          fetchStats();
+        } catch (err) {
+          console.error("Error al crear incidente:", err);
+          showToast("Error al Crear", `Fallo en POST: ${err.message}`, false);
+        }
+      });
+
+      // 5. Modal Actualizar Estado (PATCH)
+      const closeStatusModal = () => {
+        document.getElementById("statusModal").classList.add("hidden");
+        document.getElementById("statusModal").classList.remove("flex");
+      };
+      document.getElementById("btnCloseStatus").addEventListener("click", closeStatusModal);
+      document.getElementById("btnCancelStatus").addEventListener("click", closeStatusModal);
+
+      document.getElementById("patchStatusForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const id = document.getElementById("patchIncidentId").value;
+        const targetStatus = document.querySelector('input[name="targetStatus"]:checked').value;
+        const rejectionReason = document.getElementById("patchReason").value.trim();
+
+        const payload = {
+          status: targetStatus,
+          message: rejectionReason
+        };
+
+        try {
+          const resp = await fetch(`${API_BASE_URL}/api/incidents/${id}/status`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          closeStatusModal();
+          showToast("Estado Actualizado", `PATCH /api/incidents/${id}/status guardado en backend.`);
+          fetchIncidents();
+          fetchStats();
+        } catch (err) {
+          console.error("Error al actualizar estado:", err);
+          showToast("Error en PATCH", `Fallo al actualizar: ${err.message}`, false);
+        }
+      });
+
+      // 6. Modal Detalle
+      const closeDetailModal = () => {
+        document.getElementById("detailModal").classList.add("hidden");
+        document.getElementById("detailModal").classList.remove("flex");
+      };
+      document.getElementById("btnCloseDetail").addEventListener("click", closeDetailModal);
+      document.getElementById("btnDismissDetail").addEventListener("click", closeDetailModal);
+
+      // 7. Modal Documentación / Endpoints
+      document.getElementById("btnOpenDocs").addEventListener("click", () => {
+        document.getElementById("apiDocsModal").classList.remove("hidden");
+        document.getElementById("apiDocsModal").classList.add("flex");
+      });
+      document.getElementById("btnCloseDocs").addEventListener("click", () => {
+        document.getElementById("apiDocsModal").classList.add("hidden");
+        document.getElementById("apiDocsModal").classList.remove("flex");
+      });
+      document.getElementById("btnDismissDocs").addEventListener("click", () => {
+        document.getElementById("apiDocsModal").classList.add("hidden");
+        document.getElementById("apiDocsModal").classList.remove("flex");
+      });
+
+      // 8. Modal Servidor Host Switcher
+      const hostModal = document.getElementById("hostModal");
+      const inputCustomHost = document.getElementById("inputCustomHost");
+
+      document.getElementById("btnSwitchHost").addEventListener("click", () => {
+        inputCustomHost.value = API_BASE_URL;
+        hostModal.classList.remove("hidden");
+        hostModal.classList.add("flex");
+      });
+      document.getElementById("btnCloseHost").addEventListener("click", () => {
+        hostModal.classList.add("hidden");
+        hostModal.classList.remove("flex");
+      });
+      document.getElementById("btnPresetLocal8081").addEventListener("click", () => {
+        inputCustomHost.value = "http://localhost:8081";
+      });
+      document.getElementById("btnPresetLocal8080").addEventListener("click", () => {
+        inputCustomHost.value = "http://localhost:8080";
+      });
+      document.getElementById("btnPresetRender").addEventListener("click", () => {
+        inputCustomHost.value = DEFAULT_RENDER_URL;
+      });
+      document.getElementById("btnSaveHost").addEventListener("click", () => {
+        let val = inputCustomHost.value.trim().replace(/\/$/, "");
+        if (val) {
+          API_BASE_URL = val;
+          localStorage.setItem("utp_api_url", val);
+          hostModal.classList.add("hidden");
+          hostModal.classList.remove("flex");
+          showToast("Servidor Cambiado", `Conectando con ${val}`);
+          fetchIncidents();
+          fetchStats();
+        }
+      });
+
+      // 9. Login & Autenticación
+      const loginModal = document.getElementById("loginModal");
+      const loginForm = document.getElementById("loginForm");
+      const loginErrorMsg = document.getElementById("loginErrorMsg");
+
+      document.getElementById("userProfileArea").addEventListener("click", (e) => {
+        if (e.target.closest("#btnLogout")) return;
+        loginModal.classList.remove("hidden");
+        loginModal.classList.add("flex");
+      });
+
+      document.getElementById("btnCloseLogin").addEventListener("click", () => {
+        loginModal.classList.add("hidden");
+        loginModal.classList.remove("flex");
+      });
+
+      document.querySelectorAll(".btn-demo-creds").forEach(btn => {
+        btn.addEventListener("click", () => {
+          document.getElementById("loginUsername").value = btn.dataset.u;
+          document.getElementById("loginPassword").value = btn.dataset.p;
+        });
+      });
+
+      loginForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        loginErrorMsg.classList.add("hidden");
+        const username = document.getElementById("loginUsername").value.trim();
+        const password = document.getElementById("loginPassword").value.trim();
+
+        try {
+          const resp = await fetch(`${API_BASE_URL}/api/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+          });
+
+          const data = await resp.json();
+          if (resp.ok && data.authenticated) {
+            localStorage.setItem("utp_auth_user", JSON.stringify(data));
+            applyUserData(data);
+            loginModal.classList.add("hidden");
+            loginModal.classList.remove("flex");
+            showToast("Sesión Iniciada", `Bienvenido ${data.name} (${data.role})`);
+          } else {
+            loginErrorMsg.textContent = data.message || "Usuario o contraseña inválidos.";
+            loginErrorMsg.classList.remove("hidden");
+          }
+        } catch (err) {
+          console.error("Error al autenticar:", err);
+          // Si el backend aún no tiene auth en local o falla la red, simular fallback
+          if (password === "admin123" || password === "utp2025" || password === "operador123") {
+            const fallbackUser = {
+              username: username,
+              name: username === "admin" ? "Admin TI UTP" : (username === "supervisor" ? "Docente Miguel Jaeger" : "Operador NOC"),
+              role: username === "admin" ? "ADMIN" : "OPERATOR",
+              token: "mock-token-" + Date.now()
+            };
+            localStorage.setItem("utp_auth_user", JSON.stringify(fallbackUser));
+            applyUserData(fallbackUser);
+            loginModal.classList.add("hidden");
+            loginModal.classList.remove("flex");
+            showToast("Sesión Iniciada (Modo Offline)", `Bienvenido ${fallbackUser.name}`);
+          } else {
+            loginErrorMsg.textContent = "Error de conexión o credenciales incorrectas.";
+            loginErrorMsg.classList.remove("hidden");
+          }
+        }
+      });
+
+      document.getElementById("btnLogout").addEventListener("click", () => {
+        localStorage.removeItem("utp_auth_user");
+        applyUserData(null);
+        showToast("Sesión Cerrada", "Has salido del sistema.", false);
+        loginModal.classList.remove("hidden");
+        loginModal.classList.add("flex");
+      });
+    });
+
+    function applyUserData(user) {
+      const nameEl = document.getElementById("navUserName");
+      const roleEl = document.getElementById("navUserRole");
+      const avatarEl = document.getElementById("navUserAvatar");
+
+      if (user && user.name) {
+        nameEl.textContent = user.name;
+        roleEl.textContent = user.role ? `Rol: ${user.role}` : "Usuario UTP";
+        avatarEl.textContent = user.name.charAt(0).toUpperCase();
+      } else {
+        nameEl.textContent = "Iniciar Sesión";
+        roleEl.textContent = "No autenticado";
+        avatarEl.textContent = "?";
+      }
+    }
+
+    function checkAuthStatus() {
+      const stored = localStorage.getItem("utp_auth_user");
+      if (stored) {
+        try {
+          const user = JSON.parse(stored);
+          applyUserData(user);
+        } catch (e) {
+          localStorage.removeItem("utp_auth_user");
+          applyUserData(null);
+        }
+      } else {
+        // Set default admin session for smooth first experience
+        const defaultUser = {
+          username: "admin",
+          name: "Admin TI UTP",
+          role: "ADMIN"
+        };
+        localStorage.setItem("utp_auth_user", JSON.stringify(defaultUser));
+        applyUserData(defaultUser);
+      }
+    }
+  </script>
+</body>
+</html>

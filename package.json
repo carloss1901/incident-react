@@ -1,0 +1,19 @@
+{
+  "name": "incident-react",
+  "version": "1.0.0",
+  "description": "UTP Incident Operations UI - Frontend Conectado a api-incident",
+  "scripts": {
+    "start": "npx serve -s . -l 3000",
+    "dev": "npx serve -s . -l 3000",
+    "build": "echo 'Static HTML/JS ready for deployment'"
+  },
+  "keywords": [
+    "utp",
+    "incident-management",
+    "react",
+    "frontend",
+    "tailwind"
+  ],
+  "author": "UTP TI",
+  "license": "MIT"
+}
