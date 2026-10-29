@@ -10,8 +10,9 @@ Este frontend se comunica directamente con la API REST de incidentes (por defect
 - **Autenticación:**
   - `POST /api/auth/login`: Validación de credenciales y emisión del token de sesión.
   - `POST /api/auth/users`: Registro de usuarios (usuario, nombre, correo, contraseña y rol).
-  - `GET /api/auth/users`: Listado de usuarios para el panel de administración *(pendiente en backend)*.
-  - `PATCH /api/auth/users/{id}/role`: Cambio de rol de un usuario *(pendiente en backend)*.
+  - `GET /api/users`: Listado de usuarios para el panel de administración (requiere token ADMIN).
+  - `GET /api/auth/users/{id}`: Detalle de un usuario por ID.
+  - `PATCH /api/auth/users/{id}/role`: Cambio de rol de un usuario (`ADMIN`, `SUPERVISOR`, `OPERATOR`, `SUPPORT`).
   - `GET /api/auth/me`: Validación del token activo y datos del usuario autenticado.
   - `POST /api/auth/logout`: Cierre de sesión en el backend.
 - **Métricas y Estadísticas:**
@@ -29,13 +30,14 @@ Este frontend se comunica directamente con la API REST de incidentes (por defect
   - `DELETE /api/incidents/{id}`: Eliminación de tickets.
 
 ### Administración de Usuarios (solo ADMIN):
-La pestaña **Usuarios** del encabezado muestra el listado de cuentas y permite cambiar el rol (`ADMIN`, `SUPERVISOR`, `OPERATOR`) mediante un selector por fila. Un administrador no puede modificar su propio rol y también puede registrar nuevas cuentas desde esa vista.
+La pestaña **Usuarios** del encabezado lista las cuentas y permite cambiar el rol (`ADMIN`, `SUPERVISOR`, `OPERATOR`, `SUPPORT`) con un selector por fila. Un administrador no puede modificar su propio rol y también puede registrar nuevas cuentas desde esa vista. Al hacer clic en el nombre de usuario se consulta su detalle.
 
-Contrato requerido en el backend (aún no publicado en el Swagger):
-- `GET /api/auth/users` → arreglo de usuarios `{ id, username, name, email, role, createdAt }`.
-- `PATCH /api/auth/users/{id}/role` con `{ "role": "ADMIN" }` → usuario actualizado.
+Endpoints utilizados:
+- `GET /api/users` → listado de usuarios `{ id, username, name, email, role, createdAt }` (requiere token ADMIN).
+- `GET /api/auth/users/{id}` → detalle de usuario.
+- `PATCH /api/auth/users/{id}/role` con `{ "role": "SUPPORT" }` → usuario actualizado.
 
-Mientras esos endpoints no existan, la vista muestra un aviso de "endpoints aún no disponibles" y no rompe el resto de la aplicación.
+Nota: el backend también expone `PUT/POST/PATCH /api/auth/roles`, que duplica la funcionalidad de `PATCH /api/auth/users/{id}/role`; el frontend usa solo este último.
 
 ### Verificación de integración:
 ```bash

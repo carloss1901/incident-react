@@ -17,7 +17,9 @@ import {
   getAuthToken,
   registerUser,
   getUsers,
+  getUserById,
   updateUserRole,
+  USER_ROLES,
   API_BASE_URL,
   setApiBaseUrl,
   DEFAULT_LOCAL_URL,
@@ -32,6 +34,13 @@ const CATEGORY_COLORS = {
   Seguridad: 'bg-rose-100 text-rose-800 border-rose-200',
   Infraestructura: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   General: 'bg-slate-100 text-slate-700 border-slate-200',
+};
+
+const ROLE_STYLES = {
+  ADMIN: 'bg-primary/10 text-primary border-primary/30',
+  SUPERVISOR: 'bg-amber-100 text-amber-800 border-amber-200',
+  OPERATOR: 'bg-sky-100 text-sky-800 border-sky-200',
+  SUPPORT: 'bg-violet-100 text-violet-800 border-violet-200',
 };
 
 // El backend mantiene datos históricos con OPEN/CLOSED y nuevos con Active/Inactive.
@@ -112,6 +121,10 @@ export default function App() {
   const [savingRoleId, setSavingRoleId] = useState(null);
   const [usersSearch, setUsersSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState('ALL');
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [userDetailLoading, setUserDetailLoading] = useState(false);
+  const [userDetailError, setUserDetailError] = useState('');
 
   // Toast
   const [toast, setToast] = useState({ visible: false, title: '', message: '', isSuccess: true });
@@ -256,9 +269,11 @@ export default function App() {
       setUsersAvailable(true);
     } catch (err) {
       setUsers([]);
-      if (err.status === 404 || err.status === 405) {
+      if (err.status === 401) {
+        setUsersError('Sesión sin token válido. Vuelve a iniciar sesión como ADMIN para administrar usuarios.');
+      } else if (err.status === 404 || err.status === 405) {
         setUsersAvailable(false);
-        setUsersError('El backend aún no expone GET /api/auth/users.');
+        setUsersError('El backend aún no expone GET /api/users.');
       } else {
         setUsersError(err.message || 'No se pudo obtener el listado de usuarios.');
       }
@@ -309,6 +324,28 @@ export default function App() {
       triggerToast('Error al Actualizar Rol', err.message, false);
     } finally {
       setSavingRoleId(null);
+    }
+  };
+
+  // GET /api/auth/users/{id}: detalle del usuario seleccionado
+  const handleOpenUserDetail = async (target) => {
+    setSelectedUser(target);
+    setShowUserModal(true);
+    setUserDetailError('');
+    setUserDetailLoading(true);
+    try {
+      const fresh = await getUserById(target.id);
+      if (fresh && typeof fresh === 'object') {
+        setSelectedUser({
+          ...target,
+          ...fresh,
+          role: String(fresh.role || target.role || 'OPERATOR').toUpperCase(),
+        });
+      }
+    } catch (err) {
+      setUserDetailError(err.message || 'No se pudo cargar el detalle del usuario.');
+    } finally {
+      setUserDetailLoading(false);
     }
   };
 
@@ -1009,7 +1046,7 @@ export default function App() {
                   <span>/</span>
                   <span className="text-on-surface font-medium">Administración de Usuarios</span>
                   <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-[11px] font-mono text-on-surface">
-                    /api/auth/users
+                    /api/users
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1042,9 +1079,9 @@ export default function App() {
                     <div className="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2">
                       <span className="material-symbols-outlined text-amber-600 text-xl">warning</span>
                       <div>
-                        <p className="text-sm font-bold text-amber-800">Endpoints de usuarios aún no disponibles</p>
+                        <p className="text-sm font-bold text-amber-800">Endpoints de usuarios no disponibles</p>
                         <p className="text-xs text-amber-700 mt-1">
-                          La interfaz está lista, pero el backend debe exponer <code className="font-mono">GET /api/auth/users</code> y{' '}
+                          La interfaz está lista, pero el backend debe exponer <code className="font-mono">GET /api/users</code> y{' '}
                           <code className="font-mono">PATCH /api/auth/users/{'{id}'}/role</code> para listar y guardar los cambios.
                         </p>
                       </div>
@@ -1076,9 +1113,9 @@ export default function App() {
                         className="w-full sm:w-auto bg-surface-container-low text-xs text-on-surface px-3 py-2 rounded-lg focus:outline-none cursor-pointer border border-surface-container"
                       >
                         <option value="ALL">Todos los Roles</option>
-                        <option value="ADMIN">ADMIN</option>
-                        <option value="SUPERVISOR">SUPERVISOR</option>
-                        <option value="OPERATOR">OPERATOR</option>
+                        {USER_ROLES.map(role => (
+                          <option key={role} value={role}>{role}</option>
+                        ))}
                       </select>
                     </div>
                     <span className="text-xs text-on-surface-variant font-semibold">
@@ -1115,20 +1152,20 @@ export default function App() {
                             const draftRole = roleDrafts[item.id] || currentRole;
                             const isSelf = Boolean(user && item.username === user.username);
                             const changed = draftRole !== currentRole;
-                            const badge = currentRole === 'ADMIN'
-                              ? 'bg-primary/10 text-primary border-primary/30'
-                              : currentRole === 'SUPERVISOR'
-                                ? 'bg-amber-100 text-amber-800 border-amber-200'
-                                : 'bg-sky-100 text-sky-800 border-sky-200';
+                            const badge = ROLE_STYLES[currentRole] || ROLE_STYLES.OPERATOR;
 
                             return (
                               <tr key={item.id} className="hover:bg-surface-container-low transition">
                                 <td className="py-3 px-4 font-mono text-xs text-on-surface-variant">{item.id}</td>
                                 <td className="py-3 px-4">
-                                  <div className="font-bold text-on-surface flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => handleOpenUserDetail(item)}
+                                    className="font-bold text-on-surface hover:text-primary transition flex items-center gap-1.5"
+                                    title="Ver detalle (GET /api/auth/users/{id})"
+                                  >
                                     {item.username}
                                     {isSelf && <span className="px-1.5 py-0.5 rounded bg-surface-container text-[10px] font-semibold text-on-surface-variant">Tú</span>}
-                                  </div>
+                                  </button>
                                 </td>
                                 <td className="py-3 px-4">
                                   <div className="text-on-surface text-xs font-semibold">{item.name || item.fullName || '—'}</div>
@@ -1147,9 +1184,9 @@ export default function App() {
                                     className="bg-surface-container-low text-xs text-on-surface px-2 py-1.5 rounded-lg border border-surface-container focus:outline-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                                     title={isSelf ? 'No puede cambiar su propio rol' : 'Seleccione el nuevo rol'}
                                   >
-                                    <option value="ADMIN">ADMIN</option>
-                                    <option value="SUPERVISOR">SUPERVISOR</option>
-                                    <option value="OPERATOR">OPERATOR</option>
+                                    {USER_ROLES.map(role => (
+                                      <option key={role} value={role}>{role}</option>
+                                    ))}
                                   </select>
                                 </td>
                                 <td className="py-3 px-4 text-right">
@@ -1170,7 +1207,7 @@ export default function App() {
                   </div>
 
                   <p className="text-[11px] text-on-surface-variant mt-3">
-                    Endpoint de actualización: <code className="font-mono">PATCH /api/auth/users/{'{id}'}/role</code> con cuerpo <code className="font-mono">{'{ "role": "ADMIN | SUPERVISOR | OPERATOR" }'}</code>.
+                    Listado: <code className="font-mono">GET /api/users</code> · Actualización: <code className="font-mono">PATCH /api/auth/users/{'{id}'}/role</code> con cuerpo <code className="font-mono">{'{ "role": "ADMIN | SUPERVISOR | OPERATOR | SUPPORT" }'}</code>.
                   </p>
                 </>
               )}
@@ -1341,9 +1378,9 @@ export default function App() {
                     onChange={(e) => setRegisterForm({ ...registerForm, role: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-surface-container focus:outline-none cursor-pointer"
                   >
-                    <option value="OPERATOR">OPERATOR</option>
-                    <option value="SUPERVISOR">SUPERVISOR</option>
-                    <option value="ADMIN">ADMIN</option>
+                    {USER_ROLES.map(role => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -1622,6 +1659,72 @@ export default function App() {
         </div>
       )}
 
+      {/* Modal: Detalle de Usuario (GET /api/auth/users/{id}) */}
+      {showUserModal && selectedUser && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative w-full max-w-md rounded-2xl bg-surface-container-lowest p-6 shadow-2xl flex flex-col border border-surface-container">
+            <div className="flex items-center justify-between pb-3 border-b border-surface-container">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center font-bold">
+                  {String(selectedUser.username || '?').charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h2 className="font-headline-md text-base text-on-surface font-bold">{selectedUser.username}</h2>
+                  <p className="text-xs text-on-surface-variant">GET /api/auth/users/{selectedUser.id}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowUserModal(false)} className="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant">
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            <div className="py-4 space-y-3">
+              {userDetailLoading && (
+                <div className="p-3 rounded-lg bg-surface-container-low text-xs text-on-surface-variant">Cargando detalle...</div>
+              )}
+              {userDetailError && (
+                <div className="p-3 rounded-lg bg-red-100 text-red-700 text-xs font-semibold">{userDetailError}</div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-[11px] uppercase text-on-surface-variant font-semibold">ID</span>
+                  <p className="text-sm text-on-surface font-mono mt-0.5">{selectedUser.id}</p>
+                </div>
+                <div>
+                  <span className="text-[11px] uppercase text-on-surface-variant font-semibold">Rol</span>
+                  <div className="mt-1">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border ${ROLE_STYLES[selectedUser.role] || ROLE_STYLES.OPERATOR}`}>
+                      {selectedUser.role}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-[11px] uppercase text-on-surface-variant font-semibold">Nombre</span>
+                  <p className="text-xs text-on-surface mt-0.5">{selectedUser.name || selectedUser.fullName || '—'}</p>
+                </div>
+                <div>
+                  <span className="text-[11px] uppercase text-on-surface-variant font-semibold">Correo</span>
+                  <p className="text-xs text-on-surface mt-0.5 break-all">{selectedUser.email || '—'}</p>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[11px] uppercase text-on-surface-variant font-semibold">Registrado</span>
+                <p className="text-xs text-on-surface font-mono mt-0.5">{selectedUser.createdAt || '—'}</p>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-surface-container flex justify-end">
+              <button onClick={() => setShowUserModal(false)} className="px-4 py-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold">Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal: Docs */}
       {showDocsModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -1663,19 +1766,28 @@ export default function App() {
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
                 <div className="flex items-center justify-between">
                   <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
-                  <code className="font-mono text-xs font-bold text-on-surface">/api/auth/users</code>
-                  <span className="text-xs text-amber-600 font-semibold">Pendiente backend</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/users</code>
+                  <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
                 </div>
-                <p className="text-xs text-on-surface-variant mt-1">Listado de usuarios para el panel de administración (solo ADMIN).</p>
+                <p className="text-xs text-on-surface-variant mt-1">Listado de usuarios para el panel de administración (requiere token ADMIN).</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/auth/users/{'{id}'}</code>
+                  <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Detalle de un usuario por su identificador.</p>
               </div>
 
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
                 <div className="flex items-center justify-between">
                   <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-amber-500 text-white">PATCH</span>
                   <code className="font-mono text-xs font-bold text-on-surface">/api/auth/users/{'{id}'}/role</code>
-                  <span className="text-xs text-amber-600 font-semibold">Pendiente backend</span>
+                  <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
                 </div>
-                <p className="text-xs text-on-surface-variant mt-1">Actualización del rol de un usuario (ADMIN, SUPERVISOR u OPERATOR).</p>
+                <p className="text-xs text-on-surface-variant mt-1">Actualización del rol de un usuario (ADMIN, SUPERVISOR, OPERATOR o SUPPORT).</p>
               </div>
 
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">

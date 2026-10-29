@@ -17,7 +17,9 @@ import {
   logoutUser,
   registerUser,
   getUsers,
+  getUserById,
   updateUserRole,
+  USER_ROLES,
   createIncident,
   updateIncidentStatus,
   deleteIncident,
@@ -124,10 +126,11 @@ await check("POST /api/auth/users (registro)", async () => {
 });
 
 let usersList = null;
-await check("GET /api/auth/users (panel admin)", async () => {
+await check("GET /api/users (panel admin)", async () => {
   try {
     const data = await getUsers();
     usersList = Array.isArray(data) ? data : (data && Array.isArray(data.users) ? data.users : []);
+    if (!usersList.length) throw new Error("El listado llegó vacío");
     return `${usersList.length} usuarios`;
   } catch (err) {
     if (err.status === 404 || err.status === 405) return "pendiente: el backend aún no implementa este endpoint";
@@ -135,13 +138,26 @@ await check("GET /api/auth/users (panel admin)", async () => {
   }
 });
 
-await check("PATCH /api/auth/users/{id}/role (panel admin)", async () => {
-  if (!usersList) return "omitido: falta GET /api/auth/users";
+await check("GET /api/auth/users/{id} (detalle)", async () => {
+  if (!usersList) return "omitido: falta GET /api/users";
+  const target = usersList.find(u => u.username === "check.api.user") || usersList[0];
+  const user = await getUserById(target.id);
+  if (!user || String(user.id) !== String(target.id)) throw new Error("Detalle inconsistente");
+  return `id=${user.id} usuario=${user.username} rol=${user.role}`;
+});
+
+await check("PATCH /api/auth/users/{id}/role", async () => {
+  if (!usersList) return "omitido: falta GET /api/users";
   const target = usersList.find(u => u.username === "check.api.user") || usersList[0];
   if (!target) return "omitido: no hay usuarios para actualizar";
+  const original = String(target.role).toUpperCase();
+  const probe = original === "SUPPORT" ? "OPERATOR" : "SUPPORT";
   try {
-    const updated = await updateUserRole(target.id, target.role);
-    return `id=${target.id} rol=${(updated && updated.role) || target.role}`;
+    const updated = await updateUserRole(target.id, probe);
+    if (String(updated.role).toUpperCase() !== probe) throw new Error(`rol inesperado: ${updated.role}`);
+    const reverted = await updateUserRole(target.id, original);
+    if (String(reverted.role).toUpperCase() !== original) throw new Error(`no se pudo restaurar el rol: ${reverted.role}`);
+    return `id=${target.id} ${original} -> ${probe} -> ${original}`;
   } catch (err) {
     if (err.status === 404 || err.status === 405) return "pendiente: el backend aún no implementa este endpoint";
     throw err;
@@ -204,7 +220,8 @@ const expected = [
   "GET /api/incidents/stats/count",
   "POST /api/auth/login",
   "POST /api/auth/users",
-  "GET /api/auth/users",
+  "GET /api/users",
+  "GET /api/auth/users/{id}",
   "PATCH /api/auth/users/{id}/role",
   "POST /api/auth/logout",
   "GET /api/auth/me",
@@ -224,6 +241,10 @@ if (!spec) {
   const extra = expected.filter(op => !documented.includes(op));
   console.log(`  Documentados: ${documented.length} | Cubiertos por el frontend: ${expected.length}`);
   if (missing.length) console.log(`  Sin implementar en el frontend: ${missing.join(", ")}`);
+  const redundantRoleApis = missing.filter(op => /^(PUT|POST|PATCH) \/api\/auth\/roles$/.test(op));
+  if (redundantRoleApis.length) {
+    console.log("  Nota: /api/auth/roles (PUT/POST/PATCH) duplica la funcionalidad de PATCH /api/auth/users/{id}/role; se recomienda retirarla del backend.");
+  }
   if (extra.length) console.log(`  Implementados en el frontend pero aún no documentados por el backend: ${extra.join(", ")}`);
   if (!missing.length && !extra.length) console.log("  Cobertura completa: todos los endpoints documentados están implementados.");
 }

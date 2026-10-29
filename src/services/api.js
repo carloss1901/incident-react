@@ -142,9 +142,17 @@ export async function registerUser(data) {
   return await request("/api/auth/users", { method: "POST", body: data });
 }
 
-// GET /api/auth/users  (listado de usuarios, solo ADMIN)
+// Roles aceptados por el backend (validados en PATCH /api/auth/users/{id}/role)
+export const USER_ROLES = ["ADMIN", "SUPERVISOR", "OPERATOR", "SUPPORT"];
+
+// GET /api/users  (listado de usuarios, solo ADMIN)
 export async function getUsers() {
-  return await request("/api/auth/users");
+  return await request("/api/users");
+}
+
+// GET /api/auth/users/{id}  (detalle de usuario, solo ADMIN)
+export async function getUserById(id) {
+  return await request(`/api/auth/users/${id}`);
 }
 
 // PATCH /api/auth/users/{id}/role  (cambio de rol, solo ADMIN)
