@@ -220,6 +220,14 @@ export async function updateIncidentStatus(id, status, message) {
   });
 }
 
+// PATCH /api/incidents/{id}/priority
+export async function updateIncidentPriority(id, priority) {
+  return await request(`/api/incidents/${id}/priority`, {
+    method: "PATCH",
+    body: { priority },
+  });
+}
+
 // DELETE /api/incidents/{id}  -> 204 No Content
 export async function deleteIncident(id) {
   await request(`/api/incidents/${id}`, { method: "DELETE" });

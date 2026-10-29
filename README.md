@@ -30,7 +30,10 @@ Este frontend se comunica directamente con la API REST de incidentes (por defect
   - `GET /api/incidents/{id}`: Detalle de incidente por ID.
   - `POST /api/incidents`: Creación de nuevo incidente con categoría, prioridad, ubicación y estado.
   - `PATCH /api/incidents/{id}/status`: Actualización de estado y notas de resolución/rechazo.
+  - `PATCH /api/incidents/{id}/priority`: Actualización de la prioridad (`High`, `Medium`, `Low`).
   - `DELETE /api/incidents/{id}`: Eliminación de tickets.
+
+La prioridad por defecto de un incidente es **Baja (`Low`)**, tanto en el formulario de creación como en los registros sin prioridad enviada. El modal **Editar** permite cambiar el estado y la prioridad en una sola operación.
 
 ### Administración de Usuarios (solo ADMIN):
 La pestaña **Usuarios** del encabezado lista las cuentas y permite cambiar el rol (Administrador, Supervisor, Operador, Soporte) con un selector por fila; el cambio se guarda automáticamente al elegirlo. Un administrador no puede modificar su propio rol y también puede registrar nuevas cuentas desde esa vista. Al hacer clic en el nombre de usuario se consulta su detalle.

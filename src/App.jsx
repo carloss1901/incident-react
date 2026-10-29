@@ -9,6 +9,7 @@ import {
   getIncidentCount,
   createIncident,
   updateIncidentStatus,
+  updateIncidentPriority,
   deleteIncident,
   getIncidentById,
   loginUser,
@@ -60,7 +61,7 @@ function normalizeStatus(status) {
 }
 
 function normalizePriority(priority) {
-  const value = String(priority || 'Medium').toUpperCase();
+  const value = String(priority || 'Low').toUpperCase();
   if (value === 'CRITICAL' || value === 'CRITICA' || value === 'CRÍTICA') return 'High';
   if (value === 'ALTA') return 'High';
   if (value === 'MEDIA') return 'Medium';
@@ -108,14 +109,14 @@ export default function App() {
 
   // Selecciones para modales
   const [selectedIncident, setSelectedIncident] = useState(null);
-  const [patchStatusData, setPatchStatusData] = useState({ id: null, status: 'Active', message: '', ticketCode: '' });
+  const [patchStatusData, setPatchStatusData] = useState({ id: null, status: 'Active', priority: 'Low', message: '', ticketCode: '' });
 
   // Formularios
   const [newIncident, setNewIncident] = useState({
     title: '',
     description: '',
     category: 'Redes',
-    priority: 'High',
+    priority: 'Low',
     status: 'Active',
     location: 'Lima Centro - Torre Tecnológica',
   });
@@ -603,7 +604,7 @@ export default function App() {
         title: '',
         description: '',
         category: 'Redes',
-        priority: 'High',
+        priority: 'Low',
         status: 'Active',
         location: 'Lima Centro - Torre Tecnológica',
       });
@@ -614,12 +615,13 @@ export default function App() {
     }
   };
 
-  // Manejo de Actualización de Estado (PATCH)
+  // Manejo de Actualización de Estado y Prioridad (PATCH)
   const handleOpenPatchModal = (incident) => {
     setPatchStatusData({
       id: incident.id,
       ticketCode: incident.ticketCode,
       status: incident.status === 'Active' ? 'Active' : 'Inactive',
+      priority: normalizePriority(incident.priority || incident.severity),
       message: incident.rejectionReason || ''
     });
     setShowStatusModal(true);
@@ -632,9 +634,12 @@ export default function App() {
       return;
     }
     try {
-      await updateIncidentStatus(patchStatusData.id, patchStatusData.status, patchStatusData.message);
+      await Promise.all([
+        updateIncidentStatus(patchStatusData.id, patchStatusData.status, patchStatusData.message),
+        updateIncidentPriority(patchStatusData.id, patchStatusData.priority),
+      ]);
       setShowStatusModal(false);
-      triggerToast('Estado Actualizado', `PATCH /api/incidents/${patchStatusData.id}/status completado.`);
+      triggerToast('Incidente Actualizado', `PATCH /api/incidents/${patchStatusData.id}/status y /priority completados.`);
       loadData();
     } catch (err) {
       triggerToast('Error en PATCH', err.message, false);
@@ -693,7 +698,7 @@ export default function App() {
       const statusVal = itemActive ? 'Active' : 'Inactive';
       const matchStatus = statusFilter === 'ALL' || statusVal === statusFilter;
 
-      const itemPrio = (item.priority || item.severity || 'Medium').toUpperCase();
+      const itemPrio = (item.priority || item.severity || 'Low').toUpperCase();
       const matchPriority = priorityFilter === 'ALL' || itemPrio === priorityFilter.toUpperCase();
 
       const itemCat = (item.category || 'General').toLowerCase();
@@ -1116,7 +1121,7 @@ export default function App() {
                           className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-amber-600 hover:bg-amber-500/10 text-xs font-semibold transition"
                         >
                           <span className="material-symbols-outlined text-base">edit</span>
-                          <span>Estado</span>
+                          <span>Editar</span>
                         </button>
                         <button
                           onClick={() => handleDelete(item.id, item.ticketCode, item.title)}
@@ -1177,7 +1182,7 @@ export default function App() {
                               <button onClick={() => handleOpenDetailModal(item)} className="p-1.5 rounded-lg text-tertiary hover:bg-tertiary/10" title="Ver Detalle">
                                 <span className="material-symbols-outlined text-base">visibility</span>
                               </button>
-                              <button onClick={() => handleOpenPatchModal(item)} className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-500/10" title="Editar Estado">
+                              <button onClick={() => handleOpenPatchModal(item)} className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-500/10" title="Editar Estado y Prioridad">
                                 <span className="material-symbols-outlined text-base">edit</span>
                               </button>
                               <button onClick={() => handleDelete(item.id, item.ticketCode, item.title)} className="p-1.5 rounded-lg text-primary hover:bg-primary/10" title="Eliminar">
@@ -1832,9 +1837,9 @@ export default function App() {
                     onChange={(e) => setNewIncident({ ...newIncident, priority: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-surface-container focus:outline-none cursor-pointer"
                   >
-                    <option value="High">High (Crítico)</option>
-                    <option value="Medium">Medium (Medio)</option>
-                    <option value="Low">Low (Bajo)</option>
+                    <option value="Low">Baja (Low) — por defecto</option>
+                    <option value="Medium">Media (Medium)</option>
+                    <option value="High">Alta (High)</option>
                   </select>
                 </div>
 
@@ -1880,8 +1885,8 @@ export default function App() {
                   <span className="material-symbols-outlined text-xl">edit_note</span>
                 </div>
                 <div>
-                  <h2 className="font-headline-md text-base text-on-surface font-bold">Actualizar Estado</h2>
-                  <p className="text-xs text-on-surface-variant">PATCH /api/incidents/{patchStatusData.id}/status • {patchStatusData.ticketCode}</p>
+                  <h2 className="font-headline-md text-base text-on-surface font-bold">Editar Incidente</h2>
+                  <p className="text-xs text-on-surface-variant">PATCH /api/incidents/{patchStatusData.id}/status + /priority • {patchStatusData.ticketCode}</p>
                 </div>
               </div>
               <button onClick={() => setShowStatusModal(false)} className="p-1 rounded-full hover:bg-surface-container-low text-on-surface-variant">
@@ -1925,6 +1930,39 @@ export default function App() {
               </div>
 
               <div>
+                <span className="block text-xs font-semibold text-on-surface mb-2">Prioridad del Incidente:</span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    { value: 'High', label: 'Alta', hint: 'High', active: 'bg-rose-500/10 border-rose-500', dot: 'bg-rose-600' },
+                    { value: 'Medium', label: 'Media', hint: 'Medium', active: 'bg-amber-500/10 border-amber-500', dot: 'bg-amber-500' },
+                    { value: 'Low', label: 'Baja', hint: 'Low', active: 'bg-sky-500/10 border-sky-500', dot: 'bg-sky-600' },
+                  ].map(option => (
+                    <label
+                      key={option.value}
+                      className={`cursor-pointer flex items-center gap-2 p-3 rounded-xl border transition ${patchStatusData.priority === option.value ? option.active : 'bg-surface-container-low border-surface-container'}`}
+                    >
+                      <input
+                        type="radio"
+                        name="priorityChoice"
+                        value={option.value}
+                        checked={patchStatusData.priority === option.value}
+                        onChange={() => setPatchStatusData({ ...patchStatusData, priority: option.value })}
+                        className="accent-primary"
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-on-surface flex items-center gap-1.5">
+                          <span className={`w-2 h-2 rounded-full ${option.dot}`}></span>
+                          {option.label}
+                        </span>
+                        <span className="text-[11px] text-on-surface-variant">{option.hint}</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-[11px] text-on-surface-variant mt-1.5">Valor por defecto: Baja (Low).</p>
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-on-surface mb-1">Razones del rechazo / Notas de resolución</label>
                 <textarea
                   rows={3}
@@ -1937,7 +1975,7 @@ export default function App() {
 
               <div className="pt-3 border-t border-surface-container flex items-center justify-end gap-2">
                 <button type="button" onClick={() => setShowStatusModal(false)} className="px-4 py-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold">Cancelar</button>
-                <button type="submit" className="px-5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md transition">Ejecutar PATCH</button>
+                <button type="submit" className="px-5 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md transition">Guardar cambios</button>
               </div>
             </form>
           </div>
@@ -2267,6 +2305,15 @@ export default function App() {
                   <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
                 </div>
                 <p className="text-xs text-on-surface-variant mt-1">Actualiza estado (Active / Inactive) y notas de rechazo o resolución.</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-amber-500 text-white">PATCH</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/incidents/{'{id}'}/priority</code>
+                  <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Actualiza la prioridad del incidente (High / Medium / Low). Solo administrador.</p>
               </div>
 
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">

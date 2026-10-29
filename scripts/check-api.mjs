@@ -24,6 +24,7 @@ import {
   USER_ROLES,
   createIncident,
   updateIncidentStatus,
+  updateIncidentPriority,
   deleteIncident,
   DEFAULT_RENDER_URL,
 } from "../src/services/api.js";
@@ -248,6 +249,14 @@ await check("PATCH /api/incidents/{id}/status", async () => {
   return `status=${updated.status}`;
 });
 
+await check("PATCH /api/incidents/{id}/priority", async () => {
+  if (!createdId) throw new Error("No se creó el ticket temporal");
+  const updated = await updateIncidentPriority(createdId, "High");
+  const priority = String(updated.priority || updated.severity || "").toUpperCase();
+  if (priority !== "HIGH") throw new Error(`priority=${updated.priority || updated.severity}`);
+  return `priority=${updated.priority || updated.severity}`;
+});
+
 await check("DELETE /api/incidents/{id}", async () => {
   if (!createdId) throw new Error("No se creó el ticket temporal");
   await deleteIncident(createdId);
@@ -271,6 +280,7 @@ const expected = [
   "GET /api/incidents/{id}",
   "DELETE /api/incidents/{id}",
   "PATCH /api/incidents/{id}/status",
+  "PATCH /api/incidents/{id}/priority",
   "GET /api/incidents/stats",
   "GET /api/incidents/stats/total",
   "GET /api/incidents/stats/by-status",
