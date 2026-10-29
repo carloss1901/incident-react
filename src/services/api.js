@@ -5,6 +5,42 @@ export const DEFAULT_RENDER_URL = "https://api-incident.onrender.com";
 
 const TOKEN_KEY = "utp_auth_token";
 const REQUEST_TIMEOUT = 20000;
+// Render free tier suspende el backend tras un periodo de inactividad.
+// La primera petición debe esperar lo suficiente para que el servicio despierte.
+const COLD_START_TIMEOUT = 45000;
+const RETRY_DELAY = 3000;
+const WARM_WINDOW = 10 * 60 * 1000;
+
+let apiWarm = false;
+let lastSuccessAt = 0;
+let lastStatusKey = null;
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function notifyApiStatus(status, message = "") {
+  if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") return;
+  const key = `${status}|${message}`;
+  if (lastStatusKey === key) return;
+  lastStatusKey = key;
+  try {
+    window.dispatchEvent(new CustomEvent("utp-api-status", { detail: { status, message } }));
+  } catch {
+    /* entorno sin CustomEvent */
+  }
+}
+
+function isApiWarm() {
+  return apiWarm && Date.now() - lastSuccessAt < WARM_WINDOW;
+}
+
+function isRetryableError(err) {
+  if (!err) return false;
+  if (err.isTimeout) return true;
+  if (err.status === 429 || err.status === 502 || err.status === 503 || err.status === 504) return true;
+  return err.name === "TypeError";
+}
 
 // Almacenamiento en memoria para entornos sin localStorage (Node, pruebas, SSR)
 const memoryStorage = new Map();
@@ -66,8 +102,8 @@ function setAuthToken(token) {
   else removeStorage(TOKEN_KEY);
 }
 
-// Cliente HTTP centralizado: JSON, timeout, token y mensajes de error del backend.
-async function request(path, { method = "GET", body, timeout = REQUEST_TIMEOUT } = {}) {
+// Una sola petición HTTP con timeout y parseo del cuerpo.
+async function requestOnce(path, { method, body, timeout }) {
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
   const timer = controller ? setTimeout(() => controller.abort(), timeout) : null;
 
@@ -107,11 +143,58 @@ async function request(path, { method = "GET", body, timeout = REQUEST_TIMEOUT }
     return data;
   } catch (err) {
     if (err.name === "AbortError") {
-      throw new Error("Tiempo de espera agotado al conectar con la API");
+      const timeoutError = new Error("Tiempo de espera agotado al conectar con la API");
+      timeoutError.isTimeout = true;
+      throw timeoutError;
     }
     throw err;
   } finally {
     if (timer) clearTimeout(timer);
+  }
+}
+
+// Cliente HTTP centralizado. Reintenta solo lecturas (GET) para tolerar el
+// arranque en frío de Render sin duplicar operaciones de escritura.
+async function request(path, { method = "GET", body, timeout } = {}) {
+  const maxRetries = method === "GET" ? 1 : 0;
+
+  if (!isApiWarm()) {
+    notifyApiStatus(
+      "connecting",
+      "Conectando con el servidor. En Render free tier el arranque puede tardar hasta 50 segundos."
+    );
+  }
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    const attemptTimeout = timeout || (method === "GET" && !isApiWarm() ? COLD_START_TIMEOUT : REQUEST_TIMEOUT);
+
+    try {
+      const data = await requestOnce(path, { method, body, timeout: attemptTimeout });
+      apiWarm = true;
+      lastSuccessAt = Date.now();
+      notifyApiStatus("online");
+      return data;
+    } catch (err) {
+      apiWarm = false;
+      const canRetry = attempt < maxRetries && isRetryableError(err);
+
+      if (canRetry) {
+        notifyApiStatus(
+          "waking",
+          "El servidor de Render está despertando. Esto puede tardar hasta 50 segundos; reintentando..."
+        );
+        await sleep(RETRY_DELAY);
+        continue;
+      }
+
+      notifyApiStatus(
+        "offline",
+        err.isTimeout
+          ? "El servidor no respondió a tiempo. Puede estar suspendido por el plan gratuito de Render."
+          : (err.message || "No se pudo conectar con la API.")
+      );
+      throw err;
+    }
   }
 }
 

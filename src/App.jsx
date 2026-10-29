@@ -74,6 +74,7 @@ export default function App() {
   const [incidents, setIncidents] = useState([]);
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, byCategory: {}, bySeverity: {}, byStatus: {} });
   const [isOnline, setIsOnline] = useState(true);
+  const [apiStatus, setApiStatus] = useState({ status: 'connecting', message: 'Conectando con el servidor...' });
   const [currentHost, setCurrentHost] = useState(API_BASE_URL);
   const [view, setView] = useState('cards'); // 'cards' | 'table'
   const [activeView, setActiveView] = useState('incidents'); // 'incidents' | 'users'
@@ -237,10 +238,25 @@ export default function App() {
         bySeverity: Object.keys(bySeverity).length ? bySeverity : fallbackSeverity,
         byStatus,
       });
-    } catch (err) {
-      console.error('Error al conectar con la API:', err);
+    } catch {
       setIsOnline(false);
     }
+  }, []);
+
+  // Estado de conexión reportado por el cliente API (arranque en frío de Render).
+  useEffect(() => {
+    const handleApiStatus = (event) => {
+      const detail = event.detail || {};
+      setApiStatus({
+        status: detail.status || 'online',
+        message: detail.message || '',
+      });
+      if (detail.status === 'online') setIsOnline(true);
+      if (detail.status === 'offline') setIsOnline(false);
+    };
+
+    window.addEventListener('utp-api-status', handleApiStatus);
+    return () => window.removeEventListener('utp-api-status', handleApiStatus);
   }, []);
 
   useEffect(() => {
@@ -273,6 +289,11 @@ export default function App() {
   }, []);
 
   const isAdmin = Boolean(user && String(user.role || '').toUpperCase() === 'ADMIN');
+  const isAuthenticated = Boolean(user);
+  // Permisos de la interfaz alineados con las reglas del backend.
+  const canCreateIncident = isAuthenticated;
+  const canEditIncident = isAdmin;
+  const canDeleteIncident = isAdmin;
 
   // GET /api/users: listado de usuarios para administración
   const loadUsers = useCallback(async () => {
@@ -794,6 +815,47 @@ export default function App() {
 
       {/* Main Workspace */}
       <main className="w-full pt-20 px-6 max-w-7xl mx-auto flex-1 pb-16">
+        {apiStatus.status !== 'online' && (
+          <div className={`mb-4 rounded-xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 shadow-sm ${
+            apiStatus.status === 'offline'
+              ? 'bg-red-50 border-red-200'
+              : 'bg-amber-50 border-amber-200'
+          }`}>
+            <div className={`p-2 rounded-lg flex items-center justify-center ${
+              apiStatus.status === 'offline' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+            }`}>
+              <span className="material-symbols-outlined text-xl">
+                {apiStatus.status === 'offline' ? 'cloud_off' : 'hourglass_top'}
+              </span>
+            </div>
+            <div className="flex-1">
+              <p className={`text-sm font-bold ${apiStatus.status === 'offline' ? 'text-red-800' : 'text-amber-800'}`}>
+                {apiStatus.status === 'offline'
+                  ? 'Sin conexión con el backend'
+                  : apiStatus.status === 'waking'
+                    ? 'Despertando el servidor de Render'
+                    : 'Conectando con el servidor'}
+              </p>
+              <p className={`text-xs mt-0.5 ${apiStatus.status === 'offline' ? 'text-red-700' : 'text-amber-700'}`}>
+                {apiStatus.message || (apiStatus.status === 'offline'
+                  ? 'Verifica que el backend esté activo o vuelve a intentarlo.'
+                  : 'El plan gratuito de Render suspende el backend tras un periodo de inactividad.')}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={loadData}
+              className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+                apiStatus.status === 'offline'
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  : 'bg-amber-600 hover:bg-amber-700 text-white'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">refresh</span>
+              Reintentar
+            </button>
+          </div>
+        )}
         <div className="flex flex-col w-full">
           <div className={activeView === 'incidents' ? 'contents' : 'hidden'}>
           {/* Top Status & Docs Bar */}
@@ -1032,13 +1094,24 @@ export default function App() {
                   </button>
                 </div>
 
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary hover:bg-primary-container text-white font-semibold text-sm transition shadow-sm"
-                >
-                  <span className="material-symbols-outlined text-lg">add_circle</span>
-                  <span>Nuevo Incidente</span>
-                </button>
+                {canCreateIncident ? (
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary hover:bg-primary-container text-white font-semibold text-sm transition shadow-sm"
+                  >
+                    <span className="material-symbols-outlined text-lg">add_circle</span>
+                    <span>Nuevo Incidente</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowLoginModal(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary hover:bg-primary-container text-white font-semibold text-sm transition shadow-sm"
+                    title="Inicia sesión para registrar incidentes"
+                  >
+                    <span className="material-symbols-outlined text-lg">login</span>
+                    <span>Iniciar sesión</span>
+                  </button>
+                )}
               </div>
             </div>
           </section>
@@ -1116,20 +1189,24 @@ export default function App() {
                           <span className="material-symbols-outlined text-base">visibility</span>
                           <span>Detalle</span>
                         </button>
-                        <button
-                          onClick={() => handleOpenPatchModal(item)}
-                          className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-amber-600 hover:bg-amber-500/10 text-xs font-semibold transition"
-                        >
-                          <span className="material-symbols-outlined text-base">edit</span>
-                          <span>Editar</span>
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id, item.ticketCode, item.title)}
-                          className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-primary hover:bg-primary/10 text-xs font-semibold transition"
-                        >
-                          <span className="material-symbols-outlined text-base">delete</span>
-                          <span>Eliminar</span>
-                        </button>
+                        {canEditIncident && (
+                          <button
+                            onClick={() => handleOpenPatchModal(item)}
+                            className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-amber-600 hover:bg-amber-500/10 text-xs font-semibold transition"
+                          >
+                            <span className="material-symbols-outlined text-base">edit</span>
+                            <span>Editar</span>
+                          </button>
+                        )}
+                        {canDeleteIncident && (
+                          <button
+                            onClick={() => handleDelete(item.id, item.ticketCode, item.title)}
+                            className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-primary hover:bg-primary/10 text-xs font-semibold transition"
+                          >
+                            <span className="material-symbols-outlined text-base">delete</span>
+                            <span>Eliminar</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -1182,12 +1259,16 @@ export default function App() {
                               <button onClick={() => handleOpenDetailModal(item)} className="p-1.5 rounded-lg text-tertiary hover:bg-tertiary/10" title="Ver Detalle">
                                 <span className="material-symbols-outlined text-base">visibility</span>
                               </button>
-                              <button onClick={() => handleOpenPatchModal(item)} className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-500/10" title="Editar Estado y Prioridad">
-                                <span className="material-symbols-outlined text-base">edit</span>
-                              </button>
-                              <button onClick={() => handleDelete(item.id, item.ticketCode, item.title)} className="p-1.5 rounded-lg text-primary hover:bg-primary/10" title="Eliminar">
-                                <span className="material-symbols-outlined text-base">delete</span>
-                              </button>
+                              {canEditIncident && (
+                                <button onClick={() => handleOpenPatchModal(item)} className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-500/10" title="Editar Estado y Prioridad">
+                                  <span className="material-symbols-outlined text-base">edit</span>
+                                </button>
+                              )}
+                              {canDeleteIncident && (
+                                <button onClick={() => handleDelete(item.id, item.ticketCode, item.title)} className="p-1.5 rounded-lg text-primary hover:bg-primary/10" title="Eliminar">
+                                  <span className="material-symbols-outlined text-base">delete</span>
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1214,22 +1295,24 @@ export default function App() {
                     /api/users
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={loadUsers}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-surface-container-lowest text-on-surface-variant hover:text-primary shadow-sm text-xs font-semibold"
-                  >
-                    <span className="material-symbols-outlined text-sm">refresh</span>
-                    Recargar
-                  </button>
-                  <button
-                    onClick={() => { setRegisterError(''); setShowRegisterModal(true); }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary-container text-white text-xs font-semibold shadow-sm"
-                  >
-                    <span className="material-symbols-outlined text-base">person_add</span>
-                    Registrar Usuario
-                  </button>
-                </div>
+                {isAdmin && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={loadUsers}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-surface-container-lowest text-on-surface-variant hover:text-primary shadow-sm text-xs font-semibold"
+                    >
+                      <span className="material-symbols-outlined text-sm">refresh</span>
+                      Recargar
+                    </button>
+                    <button
+                      onClick={() => { setRegisterError(''); setShowRegisterModal(true); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary-container text-white text-xs font-semibold shadow-sm"
+                    >
+                      <span className="material-symbols-outlined text-base">person_add</span>
+                      Registrar Usuario
+                    </button>
+                  </div>
+                )}
               </div>
 
               {!isAdmin ? (
@@ -1340,18 +1423,22 @@ export default function App() {
                                   </span>
                                 </td>
                                 <td className="py-3 px-4">
-                                  <select
-                                    value={currentRole}
-                                    disabled={isSelf || savingRoleId === item.id}
-                                    onChange={(e) => handleRoleChange(item, e.target.value)}
-                                    className="bg-surface-container-low text-xs text-on-surface px-2 py-1.5 rounded-lg border border-surface-container focus:outline-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
-                                    title={isSelf ? 'No puede cambiar su propio rol' : savingRoleId === item.id ? 'Guardando rol...' : 'Cambia el rol y se guarda al instante'}
-                                    aria-label={`Rol de ${item.username}`}
-                                  >
-                                    {USER_ROLES.map(role => (
-                                      <option key={role} value={role}>{ROLE_LABELS[role] || role}</option>
-                                    ))}
-                                  </select>
+                                  {isSelf ? (
+                                    <span className="text-[11px] text-on-surface-variant">No puedes cambiar tu propio rol</span>
+                                  ) : (
+                                    <select
+                                      value={currentRole}
+                                      disabled={savingRoleId === item.id}
+                                      onChange={(e) => handleRoleChange(item, e.target.value)}
+                                      className="bg-surface-container-low text-xs text-on-surface px-2 py-1.5 rounded-lg border border-surface-container focus:outline-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                                      title={savingRoleId === item.id ? 'Guardando rol...' : 'Cambia el rol y se guarda al instante'}
+                                      aria-label={`Rol de ${item.username}`}
+                                    >
+                                      {USER_ROLES.map(role => (
+                                        <option key={role} value={role}>{ROLE_LABELS[role] || role}</option>
+                                      ))}
+                                    </select>
+                                  )}
                                   {savingRoleId === item.id && (
                                     <div className="text-[10px] text-on-surface-variant mt-1">Guardando...</div>
                                   )}
@@ -1366,15 +1453,16 @@ export default function App() {
                                       <span className="material-symbols-outlined text-base">key</span>
                                       Contraseña
                                     </button>
-                                    <button
-                                      onClick={() => handleDeleteUser(item)}
-                                      disabled={isSelf}
-                                      className="px-2.5 py-1.5 rounded-lg text-error hover:bg-error/10 text-xs font-semibold flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
-                                      title={isSelf ? 'No puedes eliminar tu propia cuenta' : `Eliminar ${item.username}`}
-                                    >
-                                      <span className="material-symbols-outlined text-base">person_remove</span>
-                                      Eliminar
-                                    </button>
+                                    {!isSelf && (
+                                      <button
+                                        onClick={() => handleDeleteUser(item)}
+                                        className="px-2.5 py-1.5 rounded-lg text-error hover:bg-error/10 text-xs font-semibold flex items-center gap-1"
+                                        title={`Eliminar ${item.username}`}
+                                      >
+                                        <span className="material-symbols-outlined text-base">person_remove</span>
+                                        Eliminar
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
