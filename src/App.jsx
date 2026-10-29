@@ -1303,7 +1303,7 @@ export default function App() {
                           <th className="py-3 px-4">Nombre / Correo</th>
                           <th className="py-3 px-4">Rol actual</th>
                           <th className="py-3 px-4">Nuevo rol</th>
-                          <th className="py-3 px-4 text-right">Acción</th>
+                          <th className="py-3 px-4 text-right">Acciones</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-surface-container">
@@ -1361,28 +1361,30 @@ export default function App() {
                                   </select>
                                 </td>
                                 <td className="py-3 px-4 text-right">
-                                  <div className="inline-flex items-center gap-1">
+                                  <div className="inline-flex flex-wrap items-center justify-end gap-1">
                                     <button
                                       onClick={() => handleOpenPasswordModal(item)}
-                                      className="p-1.5 rounded-lg text-tertiary hover:bg-tertiary/10"
+                                      className="px-2.5 py-1.5 rounded-lg text-tertiary hover:bg-tertiary/10 text-xs font-semibold flex items-center gap-1"
                                       title={`Cambiar contraseña de ${item.username}`}
                                     >
                                       <span className="material-symbols-outlined text-base">key</span>
+                                      Contraseña
                                     </button>
                                     <button
                                       onClick={() => handleDeleteUser(item)}
                                       disabled={isSelf}
-                                      className="p-1.5 rounded-lg text-primary hover:bg-primary/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                                      className="px-2.5 py-1.5 rounded-lg text-error hover:bg-error/10 text-xs font-semibold flex items-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
                                       title={isSelf ? 'No puedes eliminar tu propia cuenta' : `Eliminar ${item.username}`}
                                     >
                                       <span className="material-symbols-outlined text-base">person_remove</span>
+                                      Eliminar
                                     </button>
                                     <button
                                       onClick={() => handleSaveRole(item)}
                                       disabled={!changed || isSelf || savingRoleId === item.id || !usersAvailable}
                                       className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-container"
                                     >
-                                      {savingRoleId === item.id ? 'Guardando...' : 'Aplicar'}
+                                      {savingRoleId === item.id ? 'Guardando...' : 'Aplicar rol'}
                                     </button>
                                   </div>
                                 </td>
@@ -1473,6 +1475,14 @@ export default function App() {
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                 Token de sesión activo · {currentHost.replace(/^https?:\/\//, '')}
               </div>
+
+              <button
+                onClick={() => { setShowProfileModal(false); handleOpenPasswordModal(null); }}
+                className="w-full py-2.5 rounded-lg border border-primary/30 text-primary hover:bg-primary/10 text-xs font-bold flex items-center justify-center gap-1.5 transition"
+              >
+                <span className="material-symbols-outlined text-base">key</span>
+                Cambiar mi contraseña
+              </button>
             </div>
 
             <div className="pt-3 border-t border-surface-container flex items-center justify-between gap-2">
@@ -1486,13 +1496,6 @@ export default function App() {
                     Usuarios
                   </button>
                 )}
-                <button
-                  onClick={() => { setShowProfileModal(false); handleOpenPasswordModal(null); }}
-                  className="px-3 py-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface text-xs font-semibold flex items-center gap-1"
-                >
-                  <span className="material-symbols-outlined text-base">key</span>
-                  Contraseña
-                </button>
                 <button
                   onClick={handleLogout}
                   className="px-3 py-2 rounded-lg text-error hover:bg-error/10 text-xs font-semibold flex items-center gap-1"
