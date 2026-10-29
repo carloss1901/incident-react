@@ -43,6 +43,13 @@ const ROLE_STYLES = {
   SUPPORT: 'bg-violet-100 text-violet-800 border-violet-200',
 };
 
+const ROLE_LABELS = {
+  ADMIN: 'Administrador',
+  SUPERVISOR: 'Supervisor',
+  OPERATOR: 'Operador',
+  SUPPORT: 'Soporte',
+};
+
 // El backend mantiene datos históricos con OPEN/CLOSED y nuevos con Active/Inactive.
 const ACTIVE_STATUSES = ['ACTIVE', 'OPEN', 'IN_PROGRESS', 'EN_PROGRESO'];
 
@@ -315,7 +322,7 @@ export default function App() {
         return next;
       });
       const label = target.name || target.username || `#${target.id}`;
-      triggerToast('Rol Actualizado', `PATCH /api/users/${target.id}/role • ${label} → ${role}`);
+      triggerToast('Rol Actualizado', `PATCH /api/users/${target.id}/role • ${label} → ${ROLE_LABELS[role] || role}`);
       if (target.username && user && target.username === user.username) {
         setUser(prev => (prev ? { ...prev, role } : prev));
         localStorage.setItem('utp_auth_user', JSON.stringify({ ...user, role }));
@@ -404,13 +411,13 @@ export default function App() {
       if (isAdmin) {
         // Un administrador registra cuentas para terceros: permanece en la vista Usuarios.
         setShowRegisterModal(false);
-        triggerToast('Usuario Registrado', `POST /api/users • ${username} (${created.role || 'OPERATOR'})`);
+        triggerToast('Usuario Registrado', `POST /api/users • ${username} (${ROLE_LABELS[String(created.role || 'OPERATOR').toUpperCase()] || created.role || 'Operador'})`);
         if (usersAvailable) loadUsers();
       } else {
         setLoginForm({ username, password: registerForm.password });
         setShowRegisterModal(false);
         setShowLoginModal(true);
-        triggerToast('Usuario Registrado', `POST /api/users • ${username} (${created.role || 'OPERATOR'})`);
+        triggerToast('Usuario Registrado', `POST /api/users • ${username} (${ROLE_LABELS[String(created.role || 'OPERATOR').toUpperCase()] || created.role || 'Operador'})`);
       }
     } catch (err) {
       setRegisterError(err.message || 'No se pudo registrar el usuario');
@@ -655,7 +662,7 @@ export default function App() {
             >
               <div className="hidden sm:flex flex-col text-right">
                 <span className="font-label-sm text-xs text-on-surface font-semibold">{user ? user.name : 'Iniciar Sesión'}</span>
-                <span className="font-label-sm text-[10px] text-outline leading-none">{user ? `Rol: ${user.role || 'Usuario'}` : 'No autenticado'}</span>
+                <span className="font-label-sm text-[10px] text-outline leading-none">{user ? `Rol: ${ROLE_LABELS[String(user.role || '').toUpperCase()] || user.role || 'Usuario'}` : 'No autenticado'}</span>
               </div>
               <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
                 {user ? user.name.charAt(0).toUpperCase() : '?'}
@@ -1158,7 +1165,7 @@ export default function App() {
                       >
                         <option value="ALL">Todos los Roles</option>
                         {USER_ROLES.map(role => (
-                          <option key={role} value={role}>{role}</option>
+                          <option key={role} value={role}>{ROLE_LABELS[role] || role}</option>
                         ))}
                       </select>
                     </div>
@@ -1217,7 +1224,7 @@ export default function App() {
                                 </td>
                                 <td className="py-3 px-4">
                                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border ${badge}`}>
-                                    {currentRole}
+                                    {ROLE_LABELS[currentRole] || currentRole}
                                   </span>
                                 </td>
                                 <td className="py-3 px-4">
@@ -1229,7 +1236,7 @@ export default function App() {
                                     title={isSelf ? 'No puede cambiar su propio rol' : 'Seleccione el nuevo rol'}
                                   >
                                     {USER_ROLES.map(role => (
-                                      <option key={role} value={role}>{role}</option>
+                                      <option key={role} value={role}>{ROLE_LABELS[role] || role}</option>
                                     ))}
                                   </select>
                                 </td>
@@ -1309,7 +1316,7 @@ export default function App() {
                   <span className="text-[11px] uppercase text-on-surface-variant font-semibold">Rol</span>
                   <div className="mt-1">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border ${ROLE_STYLES[String(profileUser.role || '').toUpperCase()] || ROLE_STYLES.OPERATOR}`}>
-                      {profileUser.role || '—'}
+                      {ROLE_LABELS[String(profileUser.role || '').toUpperCase()] || profileUser.role || '—'}
                     </span>
                   </div>
                 </div>
@@ -1496,7 +1503,7 @@ export default function App() {
                   className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface border border-surface-container focus:ring-2 focus:ring-primary/20 focus:outline-none"
                 />
                 <p className="text-[11px] text-on-surface-variant mt-1">
-                  La cuenta se crea con rol <span className="font-semibold text-on-surface">OPERATOR</span>. Solo un administrador puede asignar otro rol desde la página de Usuarios.
+                  La cuenta se crea con rol <span className="font-semibold text-on-surface">Operador</span>. Solo un administrador puede asignar otro rol desde la página de Usuarios.
                 </p>
               </div>
 
@@ -1810,7 +1817,7 @@ export default function App() {
                   <span className="text-[11px] uppercase text-on-surface-variant font-semibold">Rol</span>
                   <div className="mt-1">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border ${ROLE_STYLES[selectedUser.role] || ROLE_STYLES.OPERATOR}`}>
-                      {selectedUser.role}
+                      {ROLE_LABELS[String(selectedUser.role || '').toUpperCase()] || selectedUser.role}
                     </span>
                   </div>
                 </div>
@@ -1875,7 +1882,7 @@ export default function App() {
                   <code className="font-mono text-xs font-bold text-on-surface">/api/users</code>
                   <span className="text-xs text-emerald-600 font-semibold">201 Created</span>
                 </div>
-                <p className="text-xs text-on-surface-variant mt-1">Registro de usuarios (usuario, nombre, correo y contraseña). Se crean con rol OPERATOR.</p>
+                <p className="text-xs text-on-surface-variant mt-1">Registro de usuarios (usuario, nombre, correo y contraseña). Se crean con rol Operador.</p>
               </div>
 
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
@@ -1902,7 +1909,7 @@ export default function App() {
                   <code className="font-mono text-xs font-bold text-on-surface">/api/users/{'{id}'}/role</code>
                   <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
                 </div>
-                <p className="text-xs text-on-surface-variant mt-1">Actualización del rol de un usuario (ADMIN, SUPERVISOR, OPERATOR o SUPPORT).</p>
+                <p className="text-xs text-on-surface-variant mt-1">Actualización del rol de un usuario (Administrador, Supervisor, Operador o Soporte).</p>
               </div>
 
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
