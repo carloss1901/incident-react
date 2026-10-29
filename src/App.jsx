@@ -2,11 +2,19 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   getIncidents,
   getStats,
+  getStatsByCategory,
+  getStatsByStatus,
+  getStatsBySeverity,
+  getTotalIncidents,
+  getIncidentCount,
   createIncident,
   updateIncidentStatus,
   deleteIncident,
   getIncidentById,
   loginUser,
+  logoutUser,
+  getCurrentUser,
+  getAuthToken,
   API_BASE_URL,
   setApiBaseUrl,
   DEFAULT_LOCAL_URL,
@@ -23,10 +31,26 @@ const CATEGORY_COLORS = {
   General: 'bg-slate-100 text-slate-700 border-slate-200',
 };
 
+// El backend mantiene datos históricos con OPEN/CLOSED y nuevos con Active/Inactive.
+const ACTIVE_STATUSES = ['ACTIVE', 'OPEN', 'IN_PROGRESS', 'EN_PROGRESO'];
+
+function normalizeStatus(status) {
+  return ACTIVE_STATUSES.includes(String(status || '').toUpperCase()) ? 'Active' : 'Inactive';
+}
+
+function normalizePriority(priority) {
+  const value = String(priority || 'Medium').toUpperCase();
+  if (value === 'CRITICAL' || value === 'CRITICA' || value === 'CRÍTICA') return 'High';
+  if (value === 'ALTA') return 'High';
+  if (value === 'MEDIA') return 'Medium';
+  if (value === 'BAJA') return 'Low';
+  return value.charAt(0) + value.slice(1).toLowerCase();
+}
+
 export default function App() {
   // Estado principal
   const [incidents, setIncidents] = useState([]);
-  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, byCategory: {}, bySeverity: {} });
+  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0, byCategory: {}, bySeverity: {}, byStatus: {} });
   const [isOnline, setIsOnline] = useState(true);
   const [currentHost, setCurrentHost] = useState(API_BASE_URL);
   const [view, setView] = useState('cards'); // 'cards' | 'table'
@@ -37,13 +61,13 @@ export default function App() {
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Usuario y Autenticación
+  // Usuario y Autenticación (la sesión se restaura desde localStorage)
   const [user, setUser] = useState(() => {
     try {
       const stored = localStorage.getItem('utp_auth_user');
-      return stored ? JSON.parse(stored) : { username: 'admin', name: 'Admin TI UTP', role: 'ADMIN' };
+      return stored ? JSON.parse(stored) : null;
     } catch {
-      return { username: 'admin', name: 'Admin TI UTP', role: 'ADMIN' };
+      return null;
     }
   });
 
@@ -82,24 +106,37 @@ export default function App() {
     }, 3500);
   }, []);
 
-  // Carga de datos
+  // Carga de datos: lista + endpoints de métricas del backend
   const loadData = useCallback(async () => {
     try {
-      const [incidentData, statsData] = await Promise.all([
+      const [
+        incidentData,
+        statsResult,
+        totalResult,
+        statusResult,
+        severityResult,
+        categoryResult,
+        countResult
+      ] = await Promise.all([
         getIncidents(),
-        getStats().catch(() => null)
+        getStats().catch(() => null),
+        getTotalIncidents().catch(() => null),
+        getStatsByStatus().catch(() => null),
+        getStatsBySeverity().catch(() => null),
+        getStatsByCategory().catch(() => null),
+        getIncidentCount().catch(() => null)
       ]);
 
-      const formatted = incidentData.map(item => ({
+      const formatted = (incidentData || []).map(item => ({
         id: item.id,
         ticketCode: item.ticketCode || `INC-${1000 + item.id}`,
         title: item.title,
         description: item.description,
         category: item.category || 'General',
         location: item.location || 'Campus UTP',
-        status: item.status || 'Active',
-        priority: item.priority || item.severity || 'Medium',
-        severity: item.severity || item.priority || 'Medium',
+        status: normalizeStatus(item.status),
+        priority: normalizePriority(item.priority || item.severity),
+        severity: normalizePriority(item.severity || item.priority),
         rejectionReason: item.message || '',
         createdAt: item.createdAt || new Date().toISOString(),
       }));
@@ -107,19 +144,50 @@ export default function App() {
       setIncidents(formatted);
       setIsOnline(true);
 
-      if (statsData) {
-        setStats(statsData);
-      } else {
-        // Fallback local
-        const total = formatted.length;
-        const active = formatted.filter(i => !i.status || i.status === 'Active' || i.status === 'OPEN').length;
-        const byCategory = {};
-        formatted.forEach(i => {
-          const c = i.category || 'General';
-          byCategory[c] = (byCategory[c] || 0) + 1;
-        });
-        setStats({ total, active, inactive: total - active, byCategory, bySeverity: {} });
-      }
+      const byCategory = categoryResult || (statsResult && statsResult.byCategory) || {};
+      const bySeverityRaw = severityResult || (statsResult && statsResult.bySeverity) || {};
+      const byStatus = statusResult || (statsResult && statsResult.byStatus) || {};
+
+      // Unifica claves de severidad (HIGH/High, MEDIUM/Medium, ...)
+      const bySeverity = {};
+      Object.entries(bySeverityRaw).forEach(([key, value]) => {
+        const label = normalizePriority(key);
+        bySeverity[label] = (bySeverity[label] || 0) + Number(value || 0);
+      });
+
+      const statusTotal = Object.values(byStatus).reduce((acc, n) => acc + Number(n || 0), 0);
+      const total =
+        (totalResult && totalResult.total) ??
+        (countResult && countResult.total) ??
+        (statsResult && statsResult.total) ??
+        formatted.length;
+
+      const active = Object.entries(byStatus).reduce(
+        (acc, [key, value]) => (ACTIVE_STATUSES.includes(String(key).toUpperCase()) ? acc + Number(value || 0) : acc),
+        0
+      );
+
+      const fallbackCategory = {};
+      formatted.forEach(i => {
+        fallbackCategory[i.category] = (fallbackCategory[i.category] || 0) + 1;
+      });
+      const fallbackSeverity = {};
+      formatted.forEach(i => {
+        fallbackSeverity[i.severity] = (fallbackSeverity[i.severity] || 0) + 1;
+      });
+
+      const resolvedActive = statusTotal > 0
+        ? active
+        : ((statsResult && statsResult.active) ?? formatted.filter(i => i.status === 'Active').length);
+
+      setStats({
+        total,
+        active: resolvedActive,
+        inactive: Math.max(total - resolvedActive, 0),
+        byCategory: Object.keys(byCategory).length ? byCategory : fallbackCategory,
+        bySeverity: Object.keys(bySeverity).length ? bySeverity : fallbackSeverity,
+        byStatus,
+      });
     } catch (err) {
       console.error('Error al conectar con la API:', err);
       setIsOnline(false);
@@ -130,36 +198,59 @@ export default function App() {
     loadData();
   }, [loadData]);
 
-  // Manejo de Login
+  // GET /api/auth/me: valida la sesión guardada al iniciar la aplicación
+  useEffect(() => {
+    if (!getAuthToken()) return;
+    let cancelled = false;
+    getCurrentUser()
+      .then(me => {
+        if (!cancelled && me && me.authenticated !== false) {
+          setUser(prev => ({
+            username: me.username || (prev && prev.username),
+            name: me.name || (prev && prev.name) || me.username,
+            role: me.role || (prev && prev.role),
+          }));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          localStorage.removeItem('utp_auth_user');
+          setUser(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Manejo de Login (POST /api/auth/login)
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setLoginError('');
     try {
       const auth = await loginUser(loginForm.username, loginForm.password);
-      setUser(auth);
-      localStorage.setItem('utp_auth_user', JSON.stringify(auth));
+      const sessionUser = {
+        username: auth.username,
+        name: auth.name || auth.username,
+        role: auth.role,
+        email: auth.email,
+      };
+      setUser(sessionUser);
+      localStorage.setItem('utp_auth_user', JSON.stringify(sessionUser));
       setShowLoginModal(false);
-      triggerToast('Sesión Iniciada', `Bienvenido ${auth.name} (${auth.role})`);
+      triggerToast('Sesión Iniciada', `Bienvenido ${sessionUser.name} (${sessionUser.role})`);
       loadData();
     } catch (err) {
-      // Fallback para testing offline
-      if (['admin123', 'utp2025', 'operador123'].includes(loginForm.password)) {
-        const fallback = {
-          username: loginForm.username,
-          name: loginForm.username === 'admin' ? 'Admin TI UTP' : (loginForm.username === 'supervisor' ? 'Docente Miguel Jaeger' : 'Operador NOC'),
-          role: loginForm.username === 'admin' ? 'ADMIN' : 'OPERATOR'
-        };
-        setUser(fallback);
-        localStorage.setItem('utp_auth_user', JSON.stringify(fallback));
-        setShowLoginModal(false);
-        triggerToast('Sesión Iniciada (Offline)', `Bienvenido ${fallback.name}`);
-      } else {
-        setLoginError(err.message || 'Usuario o contraseña inválidos');
-      }
+      setLoginError(err.message || 'Usuario o contraseña inválidos');
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch (err) {
+      console.warn('No se pudo cerrar sesión en el backend:', err.message);
+    }
     localStorage.removeItem('utp_auth_user');
     setUser(null);
     triggerToast('Sesión Cerrada', 'Has salido del sistema.', false);
@@ -198,11 +289,10 @@ export default function App() {
 
   // Manejo de Actualización de Estado (PATCH)
   const handleOpenPatchModal = (incident) => {
-    const isActive = !incident.status || incident.status === 'Active' || incident.status === 'OPEN';
     setPatchStatusData({
       id: incident.id,
       ticketCode: incident.ticketCode,
-      status: isActive ? 'Active' : 'Inactive',
+      status: incident.status === 'Active' ? 'Active' : 'Inactive',
       message: incident.rejectionReason || ''
     });
     setShowStatusModal(true);
@@ -210,6 +300,10 @@ export default function App() {
 
   const handlePatchSubmit = async (e) => {
     e.preventDefault();
+    if (!patchStatusData.id) {
+      triggerToast('Error en PATCH', 'No se seleccionó un incidente válido.', false);
+      return;
+    }
     try {
       await updateIncidentStatus(patchStatusData.id, patchStatusData.status, patchStatusData.message);
       setShowStatusModal(false);
@@ -243,6 +337,9 @@ export default function App() {
       setSelectedIncident({
         ...fresh,
         ticketCode: fresh.ticketCode || `INC-${1000 + fresh.id}`,
+        status: normalizeStatus(fresh.status),
+        priority: normalizePriority(fresh.priority || fresh.severity),
+        severity: normalizePriority(fresh.severity || fresh.priority),
         rejectionReason: fresh.message || ''
       });
     } catch {
@@ -265,7 +362,7 @@ export default function App() {
   // Filtrado reactivo de incidentes
   const filteredIncidents = useMemo(() => {
     return incidents.filter(item => {
-      const itemActive = !item.status || item.status === 'Active' || item.status === 'OPEN' || item.status === 'IN_PROGRESS';
+      const itemActive = item.status === 'Active';
       const statusVal = itemActive ? 'Active' : 'Inactive';
       const matchStatus = statusFilter === 'ALL' || statusVal === statusFilter;
 
@@ -606,7 +703,7 @@ export default function App() {
             ) : view === 'cards' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filteredIncidents.map((item) => {
-                  const isActive = !item.status || item.status === 'Active' || item.status === 'OPEN';
+                  const isActive = item.status === 'Active';
                   const catClass = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.General;
 
                   return (
@@ -697,7 +794,7 @@ export default function App() {
                   </thead>
                   <tbody className="divide-y divide-surface-container">
                     {filteredIncidents.map((item) => {
-                      const isActive = !item.status || item.status === 'Active' || item.status === 'OPEN';
+                      const isActive = item.status === 'Active';
                       const catClass = CATEGORY_COLORS[item.category] || CATEGORY_COLORS.General;
 
                       return (
@@ -1112,10 +1209,73 @@ export default function App() {
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
                 <div className="flex items-center justify-between">
                   <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/auth/me</code>
+                  <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Valida el token activo y devuelve el usuario autenticado.</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-emerald-600 text-white">POST</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/auth/logout</code>
+                  <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Invalida la sesión del usuario y limpia el token local.</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/incidents</code>
+                  <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Listado completo de incidentes registrados en la base de datos.</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/incidents/{'{id}'}</code>
+                  <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Detalle de un incidente por su identificador.</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
                   <code className="font-mono text-xs font-bold text-on-surface">/api/incidents/stats</code>
                   <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
                 </div>
                 <p className="text-xs text-on-surface-variant mt-1">Métricas globales: total, activos, inactivos, severidad y categorías.</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/incidents/stats/total</code>
+                  <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Total de incidentes registrados.</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/incidents/stats/by-status</code>
+                  <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Conteo de incidentes agrupado por estado.</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/incidents/stats/by-severity</code>
+                  <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Conteo de incidentes agrupado por severidad.</p>
               </div>
 
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
@@ -1152,6 +1312,15 @@ export default function App() {
                   <span className="text-xs text-emerald-600 font-semibold">204 No Content</span>
                 </div>
                 <p className="text-xs text-on-surface-variant mt-1">Elimina permanentemente un incidente en la base de datos.</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/incidents/count</code>
+                  <span className="text-xs text-emerald-600 font-semibold">200 OK</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Cantidad total de incidentes (alias de stats/total).</p>
               </div>
             </div>
 
