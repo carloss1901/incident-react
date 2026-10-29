@@ -142,6 +142,19 @@ export async function registerUser(data) {
   return await request("/api/auth/users", { method: "POST", body: data });
 }
 
+// GET /api/auth/users  (listado de usuarios, solo ADMIN)
+export async function getUsers() {
+  return await request("/api/auth/users");
+}
+
+// PATCH /api/auth/users/{id}/role  (cambio de rol, solo ADMIN)
+export async function updateUserRole(id, role) {
+  return await request(`/api/auth/users/${id}/role`, {
+    method: "PATCH",
+    body: { role },
+  });
+}
+
 // GET /api/auth/me
 export async function getCurrentUser() {
   return await request("/api/auth/me");

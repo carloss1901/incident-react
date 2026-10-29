@@ -16,6 +16,8 @@ import {
   getCurrentUser,
   logoutUser,
   registerUser,
+  getUsers,
+  updateUserRole,
   createIncident,
   updateIncidentStatus,
   deleteIncident,
@@ -121,6 +123,31 @@ await check("POST /api/auth/users (registro)", async () => {
   }
 });
 
+let usersList = null;
+await check("GET /api/auth/users (panel admin)", async () => {
+  try {
+    const data = await getUsers();
+    usersList = Array.isArray(data) ? data : (data && Array.isArray(data.users) ? data.users : []);
+    return `${usersList.length} usuarios`;
+  } catch (err) {
+    if (err.status === 404 || err.status === 405) return "pendiente: el backend aún no implementa este endpoint";
+    throw err;
+  }
+});
+
+await check("PATCH /api/auth/users/{id}/role (panel admin)", async () => {
+  if (!usersList) return "omitido: falta GET /api/auth/users";
+  const target = usersList.find(u => u.username === "check.api.user") || usersList[0];
+  if (!target) return "omitido: no hay usuarios para actualizar";
+  try {
+    const updated = await updateUserRole(target.id, target.role);
+    return `id=${target.id} rol=${(updated && updated.role) || target.role}`;
+  } catch (err) {
+    if (err.status === 404 || err.status === 405) return "pendiente: el backend aún no implementa este endpoint";
+    throw err;
+  }
+});
+
 // 4. CRUD sobre un ticket temporal (se elimina al final)
 let createdId = null;
 await check("POST /api/incidents", async () => {
@@ -177,6 +204,8 @@ const expected = [
   "GET /api/incidents/stats/count",
   "POST /api/auth/login",
   "POST /api/auth/users",
+  "GET /api/auth/users",
+  "PATCH /api/auth/users/{id}/role",
   "POST /api/auth/logout",
   "GET /api/auth/me",
 ];
@@ -195,7 +224,7 @@ if (!spec) {
   const extra = expected.filter(op => !documented.includes(op));
   console.log(`  Documentados: ${documented.length} | Cubiertos por el frontend: ${expected.length}`);
   if (missing.length) console.log(`  Sin implementar en el frontend: ${missing.join(", ")}`);
-  if (extra.length) console.log(`  En el frontend pero no documentados: ${extra.join(", ")}`);
+  if (extra.length) console.log(`  Implementados en el frontend pero aún no documentados por el backend: ${extra.join(", ")}`);
   if (!missing.length && !extra.length) console.log("  Cobertura completa: todos los endpoints documentados están implementados.");
 }
 

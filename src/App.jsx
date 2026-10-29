@@ -16,6 +16,8 @@ import {
   getCurrentUser,
   getAuthToken,
   registerUser,
+  getUsers,
+  updateUserRole,
   API_BASE_URL,
   setApiBaseUrl,
   DEFAULT_LOCAL_URL,
@@ -55,6 +57,7 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(true);
   const [currentHost, setCurrentHost] = useState(API_BASE_URL);
   const [view, setView] = useState('cards'); // 'cards' | 'table'
+  const [activeView, setActiveView] = useState('incidents'); // 'incidents' | 'users'
 
   // Filtros
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'Active' | 'Inactive'
@@ -99,6 +102,16 @@ export default function App() {
   const [registerForm, setRegisterForm] = useState({ username: '', name: '', email: '', password: '', role: 'OPERATOR' });
   const [registerError, setRegisterError] = useState('');
   const [customHostInput, setCustomHostInput] = useState(API_BASE_URL);
+
+  // Administración de usuarios (GET /api/auth/users, PATCH /api/auth/users/{id}/role)
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState('');
+  const [usersAvailable, setUsersAvailable] = useState(true);
+  const [roleDrafts, setRoleDrafts] = useState({});
+  const [savingRoleId, setSavingRoleId] = useState(null);
+  const [usersSearch, setUsersSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('ALL');
 
   // Toast
   const [toast, setToast] = useState({ visible: false, title: '', message: '', isSuccess: true });
@@ -227,6 +240,90 @@ export default function App() {
     };
   }, []);
 
+  const isAdmin = Boolean(user && String(user.role || '').toUpperCase() === 'ADMIN');
+
+  // GET /api/auth/users: listado de usuarios para administración
+  const loadUsers = useCallback(async () => {
+    setUsersLoading(true);
+    setUsersError('');
+    try {
+      const data = await getUsers();
+      const list = Array.isArray(data) ? data : (data && Array.isArray(data.users) ? data.users : []);
+      setUsers(list.map(item => ({
+        ...item,
+        role: String(item.role || 'OPERATOR').toUpperCase(),
+      })));
+      setUsersAvailable(true);
+    } catch (err) {
+      setUsers([]);
+      if (err.status === 404 || err.status === 405) {
+        setUsersAvailable(false);
+        setUsersError('El backend aún no expone GET /api/auth/users.');
+      } else {
+        setUsersError(err.message || 'No se pudo obtener el listado de usuarios.');
+      }
+    } finally {
+      setUsersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeView === 'users' && isAdmin) loadUsers();
+  }, [activeView, isAdmin, loadUsers]);
+
+  // Si la sesión deja de ser ADMIN (logout o expiración), vuelve a incidentes.
+  useEffect(() => {
+    if (!isAdmin && activeView === 'users') setActiveView('incidents');
+  }, [isAdmin, activeView]);
+
+  const handleRoleDraftChange = (id, role) => {
+    setRoleDrafts(prev => ({ ...prev, [id]: role }));
+  };
+
+  // PATCH /api/auth/users/{id}/role
+  const handleSaveRole = async (target) => {
+    const role = roleDrafts[target.id] || target.role;
+    if (role === target.role) return;
+    setSavingRoleId(target.id);
+    try {
+      const updated = await updateUserRole(target.id, role);
+      setUsers(prev => prev.map(item => (item.id === target.id
+        ? { ...item, ...(updated && typeof updated === 'object' ? updated : {}), role: (updated && updated.role) || role }
+        : item)));
+      setRoleDrafts(prev => {
+        const next = { ...prev };
+        delete next[target.id];
+        return next;
+      });
+      const label = target.name || target.username || `#${target.id}`;
+      triggerToast('Rol Actualizado', `PATCH /api/auth/users/${target.id}/role • ${label} → ${role}`);
+      if (target.username && user && target.username === user.username) {
+        setUser(prev => (prev ? { ...prev, role } : prev));
+        localStorage.setItem('utp_auth_user', JSON.stringify({ ...user, role }));
+      }
+    } catch (err) {
+      if (err.status === 404 || err.status === 405) {
+        setUsersAvailable(false);
+        setUsersError('El backend aún no expone PATCH /api/auth/users/{id}/role.');
+      }
+      triggerToast('Error al Actualizar Rol', err.message, false);
+    } finally {
+      setSavingRoleId(null);
+    }
+  };
+
+  const filteredUsers = useMemo(() => {
+    const q = usersSearch.trim().toLowerCase();
+    return users.filter(item => {
+      const matchRole = userRoleFilter === 'ALL' || item.role === userRoleFilter;
+      const matchQuery = !q
+        || String(item.username || '').toLowerCase().includes(q)
+        || String(item.name || item.fullName || '').toLowerCase().includes(q)
+        || String(item.email || '').toLowerCase().includes(q);
+      return matchRole && matchQuery;
+    });
+  }, [users, usersSearch, userRoleFilter]);
+
   // Manejo de Login (POST /api/auth/login)
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
@@ -263,11 +360,18 @@ export default function App() {
         role: registerForm.role,
       });
       const username = created.username || registerForm.username.trim();
-      setLoginForm({ username, password: registerForm.password });
       setRegisterForm({ username: '', name: '', email: '', password: '', role: 'OPERATOR' });
-      setShowRegisterModal(false);
-      setShowLoginModal(true);
-      triggerToast('Usuario Registrado', `POST /api/auth/users • ${username} (${created.role || registerForm.role})`);
+      if (isAdmin) {
+        // Un administrador registra cuentas para terceros: permanece en la vista Usuarios.
+        setShowRegisterModal(false);
+        triggerToast('Usuario Registrado', `POST /api/auth/users • ${username} (${created.role || registerForm.role})`);
+        if (usersAvailable) loadUsers();
+      } else {
+        setLoginForm({ username, password: registerForm.password });
+        setShowRegisterModal(false);
+        setShowLoginModal(true);
+        triggerToast('Usuario Registrado', `POST /api/auth/users • ${username} (${created.role || registerForm.role})`);
+      }
     } catch (err) {
       setRegisterError(err.message || 'No se pudo registrar el usuario');
     }
@@ -425,8 +529,30 @@ export default function App() {
             </div>
           </div>
 
+          {/* View Switcher */}
+          <nav className="flex items-center bg-surface-container-low rounded-lg p-1 border border-surface-container">
+            <button
+              onClick={() => setActiveView('incidents')}
+              className={`px-2.5 sm:px-3 py-1.5 rounded-md text-xs transition flex items-center gap-1 ${activeView === 'incidents' ? 'bg-surface-container-lowest text-primary font-semibold shadow-sm' : 'font-medium text-on-surface-variant hover:text-on-surface'}`}
+              title="Incidentes"
+            >
+              <span className="material-symbols-outlined text-base">confirmation_number</span>
+              <span className="hidden md:inline">Incidentes</span>
+            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setActiveView('users')}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-md text-xs transition flex items-center gap-1 ${activeView === 'users' ? 'bg-surface-container-lowest text-primary font-semibold shadow-sm' : 'font-medium text-on-surface-variant hover:text-on-surface'}`}
+                title="Usuarios"
+              >
+                <span className="material-symbols-outlined text-base">manage_accounts</span>
+                <span className="hidden md:inline">Usuarios</span>
+              </button>
+            )}
+          </nav>
+
           {/* Host Indicator */}
-          <div className="hidden md:flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-lg border border-surface-container">
+          <div className="hidden xl:flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-lg border border-surface-container">
             <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
             <span className="font-mono text-xs font-medium text-on-surface-variant">
               {currentHost.replace(/^https?:\/\//, '')}
@@ -467,6 +593,7 @@ export default function App() {
       {/* Main Workspace */}
       <main className="w-full pt-20 px-6 max-w-7xl mx-auto flex-1 pb-16">
         <div className="flex flex-col w-full">
+          <div className={activeView === 'incidents' ? 'contents' : 'hidden'}>
           {/* Top Status & Docs Bar */}
           <section className="w-full pt-2 pb-4">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
@@ -869,6 +996,186 @@ export default function App() {
               </div>
             )}
           </section>
+          </div>
+
+          {activeView === 'users' && (
+            <section className="w-full pt-2 pb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+                  <span className="flex items-center gap-1 font-semibold text-primary">
+                    <span className="material-symbols-outlined text-sm">manage_accounts</span>
+                    auth-controller
+                  </span>
+                  <span>/</span>
+                  <span className="text-on-surface font-medium">Administración de Usuarios</span>
+                  <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-[11px] font-mono text-on-surface">
+                    /api/auth/users
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={loadUsers}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-surface-container-lowest text-on-surface-variant hover:text-primary shadow-sm text-xs font-semibold"
+                  >
+                    <span className="material-symbols-outlined text-sm">refresh</span>
+                    Recargar
+                  </button>
+                  <button
+                    onClick={() => { setRegisterError(''); setShowRegisterModal(true); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary hover:bg-primary-container text-white text-xs font-semibold shadow-sm"
+                  >
+                    <span className="material-symbols-outlined text-base">person_add</span>
+                    Registrar Usuario
+                  </button>
+                </div>
+              </div>
+
+              {!isAdmin ? (
+                <div className="flex flex-col items-center justify-center p-12 text-center rounded-xl bg-surface-container-lowest border border-dashed border-surface-container">
+                  <span className="material-symbols-outlined text-5xl text-outline mb-2">lock</span>
+                  <h3 className="font-headline-sm text-base text-on-surface font-semibold">Acceso restringido</h3>
+                  <p className="text-xs text-on-surface-variant mt-1 max-w-sm">Solo un usuario con rol ADMIN puede listar y actualizar roles.</p>
+                </div>
+              ) : (
+                <>
+                  {!usersAvailable && (
+                    <div className="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2">
+                      <span className="material-symbols-outlined text-amber-600 text-xl">warning</span>
+                      <div>
+                        <p className="text-sm font-bold text-amber-800">Endpoints de usuarios aún no disponibles</p>
+                        <p className="text-xs text-amber-700 mt-1">
+                          La interfaz está lista, pero el backend debe exponer <code className="font-mono">GET /api/auth/users</code> y{' '}
+                          <code className="font-mono">PATCH /api/auth/users/{'{id}'}/role</code> para listar y guardar los cambios.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {usersError && usersAvailable && (
+                    <div className="mb-4 p-3 rounded-xl bg-red-100 text-red-700 text-xs font-semibold flex items-center gap-2">
+                      <span className="material-symbols-outlined text-base">error</span>
+                      {usersError}
+                    </div>
+                  )}
+
+                  <div className="rounded-xl bg-surface-container-lowest p-4 shadow-sm border border-surface-container mb-4 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+                    <div className="flex flex-col sm:flex-row items-center gap-3 flex-1">
+                      <div className="relative w-full sm:max-w-xs">
+                        <span className="material-symbols-outlined absolute left-3 top-2.5 text-on-surface-variant text-lg">search</span>
+                        <input
+                          type="text"
+                          placeholder="Buscar por usuario, nombre o correo..."
+                          value={usersSearch}
+                          onChange={(e) => setUsersSearch(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2 rounded-lg bg-surface-container-low text-sm text-on-surface placeholder:text-outline focus:outline-none focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/20 border border-surface-container"
+                        />
+                      </div>
+                      <select
+                        value={userRoleFilter}
+                        onChange={(e) => setUserRoleFilter(e.target.value)}
+                        className="w-full sm:w-auto bg-surface-container-low text-xs text-on-surface px-3 py-2 rounded-lg focus:outline-none cursor-pointer border border-surface-container"
+                      >
+                        <option value="ALL">Todos los Roles</option>
+                        <option value="ADMIN">ADMIN</option>
+                        <option value="SUPERVISOR">SUPERVISOR</option>
+                        <option value="OPERATOR">OPERATOR</option>
+                      </select>
+                    </div>
+                    <span className="text-xs text-on-surface-variant font-semibold">
+                      {filteredUsers.length} de {users.length} usuarios
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto rounded-xl bg-surface-container-lowest shadow-sm border border-surface-container">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-surface-container-low text-xs uppercase text-on-surface-variant border-b border-surface-container">
+                        <tr>
+                          <th className="py-3 px-4">ID</th>
+                          <th className="py-3 px-4">Usuario</th>
+                          <th className="py-3 px-4">Nombre / Correo</th>
+                          <th className="py-3 px-4">Rol actual</th>
+                          <th className="py-3 px-4">Nuevo rol</th>
+                          <th className="py-3 px-4 text-right">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-surface-container">
+                        {usersLoading ? (
+                          <tr>
+                            <td colSpan={6} className="py-8 px-4 text-center text-xs text-on-surface-variant">Cargando usuarios...</td>
+                          </tr>
+                        ) : filteredUsers.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-8 px-4 text-center text-xs text-on-surface-variant">
+                              {users.length === 0 ? 'No se pudieron cargar usuarios desde el backend.' : 'No hay usuarios que coincidan con los filtros.'}
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredUsers.map(item => {
+                            const currentRole = item.role;
+                            const draftRole = roleDrafts[item.id] || currentRole;
+                            const isSelf = Boolean(user && item.username === user.username);
+                            const changed = draftRole !== currentRole;
+                            const badge = currentRole === 'ADMIN'
+                              ? 'bg-primary/10 text-primary border-primary/30'
+                              : currentRole === 'SUPERVISOR'
+                                ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                : 'bg-sky-100 text-sky-800 border-sky-200';
+
+                            return (
+                              <tr key={item.id} className="hover:bg-surface-container-low transition">
+                                <td className="py-3 px-4 font-mono text-xs text-on-surface-variant">{item.id}</td>
+                                <td className="py-3 px-4">
+                                  <div className="font-bold text-on-surface flex items-center gap-1.5">
+                                    {item.username}
+                                    {isSelf && <span className="px-1.5 py-0.5 rounded bg-surface-container text-[10px] font-semibold text-on-surface-variant">Tú</span>}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="text-on-surface text-xs font-semibold">{item.name || item.fullName || '—'}</div>
+                                  <div className="text-on-surface-variant text-xs">{item.email || '—'}</div>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border ${badge}`}>
+                                    {currentRole}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <select
+                                    value={draftRole}
+                                    disabled={isSelf || savingRoleId === item.id}
+                                    onChange={(e) => handleRoleDraftChange(item.id, e.target.value)}
+                                    className="bg-surface-container-low text-xs text-on-surface px-2 py-1.5 rounded-lg border border-surface-container focus:outline-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                                    title={isSelf ? 'No puede cambiar su propio rol' : 'Seleccione el nuevo rol'}
+                                  >
+                                    <option value="ADMIN">ADMIN</option>
+                                    <option value="SUPERVISOR">SUPERVISOR</option>
+                                    <option value="OPERATOR">OPERATOR</option>
+                                  </select>
+                                </td>
+                                <td className="py-3 px-4 text-right">
+                                  <button
+                                    onClick={() => handleSaveRole(item)}
+                                    disabled={!changed || isSelf || savingRoleId === item.id || !usersAvailable}
+                                    className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-container"
+                                  >
+                                    {savingRoleId === item.id ? 'Guardando...' : 'Aplicar'}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <p className="text-[11px] text-on-surface-variant mt-3">
+                    Endpoint de actualización: <code className="font-mono">PATCH /api/auth/users/{'{id}'}/role</code> con cuerpo <code className="font-mono">{'{ "role": "ADMIN | SUPERVISOR | OPERATOR" }'}</code>.
+                  </p>
+                </>
+              )}
+            </section>
+          )}
         </div>
       </main>
 
@@ -1351,6 +1658,24 @@ export default function App() {
                   <span className="text-xs text-emerald-600 font-semibold">201 Created</span>
                 </div>
                 <p className="text-xs text-on-surface-variant mt-1">Registro de usuarios con usuario, nombre, correo, contraseña y rol.</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-600 text-white">GET</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/auth/users</code>
+                  <span className="text-xs text-amber-600 font-semibold">Pendiente backend</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Listado de usuarios para el panel de administración (solo ADMIN).</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
+                <div className="flex items-center justify-between">
+                  <span className="px-2 py-0.5 rounded font-mono text-xs font-bold bg-amber-500 text-white">PATCH</span>
+                  <code className="font-mono text-xs font-bold text-on-surface">/api/auth/users/{'{id}'}/role</code>
+                  <span className="text-xs text-amber-600 font-semibold">Pendiente backend</span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">Actualización del rol de un usuario (ADMIN, SUPERVISOR u OPERATOR).</p>
               </div>
 
               <div className="p-3 rounded-xl bg-surface-container-low border border-surface-container">
