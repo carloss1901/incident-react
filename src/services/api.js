@@ -79,9 +79,8 @@ function removeStorage(key) {
 export function getInitialApiUrl() {
   const stored = readStorage("utp_api_url");
   if (stored) return stored;
-  if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-    return DEFAULT_LOCAL_URL;
-  }
+  // El frontend local usa el backend desplegado, salvo que el usuario el cambie
+  // explícitamente desde la configuración de host (valor guardado arriba).
   return DEFAULT_RENDER_URL;
 }
 

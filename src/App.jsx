@@ -87,7 +87,8 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(true);
   const [apiStatus, setApiStatus] = useState({ status: 'connecting', message: 'Conectando con el servidor...' });
   const [currentHost, setCurrentHost] = useState(API_BASE_URL);
-  const [view, setView] = useState('cards'); // 'cards' | 'table'
+  // La consola operativa se presenta como cola tabular de alta densidad.
+  const view = 'table';
   const [activeView, setActiveView] = useState('incidents'); // 'incidents' | 'users'
 
   // Filtros
@@ -1083,25 +1084,8 @@ export default function App() {
                 </select>
               </div>
 
-              {/* View Toggles & Add Button */}
+              {/* Primary action */}
               <div className="flex items-center gap-2 justify-end">
-                <div className="flex items-center bg-surface-container-low rounded-lg p-1 border border-surface-container">
-                  <button
-                    onClick={() => setView('cards')}
-                    title="Vista Tarjetas"
-                    className={`p-1.5 rounded-md transition ${view === 'cards' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
-                  >
-                    <span className="material-symbols-outlined text-base">grid_view</span>
-                  </button>
-                  <button
-                    onClick={() => setView('table')}
-                    title="Vista Tabla"
-                    className={`p-1.5 rounded-md transition ${view === 'table' ? 'bg-surface-container-lowest text-primary shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}`}
-                  >
-                    <span className="material-symbols-outlined text-base">format_list_bulleted</span>
-                  </button>
-                </div>
-
                 {canCreateIncident ? (
                   <button
                     onClick={() => setShowCreateModal(true)}
@@ -1222,16 +1206,16 @@ export default function App() {
               </div>
             ) : (
               <div className="overflow-x-auto rounded-xl bg-surface-container-lowest shadow-sm border border-surface-container">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-surface-container-low text-xs uppercase text-on-surface-variant border-b border-surface-container">
+                <table className="w-full min-w-[980px] text-left text-sm">
+                  <thead className="bg-surface-container-low font-mono text-[11px] uppercase tracking-wider text-on-surface-variant border-b border-surface-container">
                     <tr>
-                      <th className="py-3 px-4">Ticket</th>
-                      <th className="py-3 px-4">Título &amp; Ubicación</th>
-                      <th className="py-3 px-4">Categoría</th>
-                      <th className="py-3 px-4">Estado</th>
-                      <th className="py-3 px-4">Prioridad</th>
-                      <th className="py-3 px-4">Notas / Resolución</th>
-                      <th className="py-3 px-4 text-right">Acciones</th>
+                      <th className="py-3 px-4 font-semibold">Ticket ID</th>
+                      <th className="py-3 px-4 font-semibold">Incidente / Descripción</th>
+                      <th className="py-3 px-4 font-semibold">Campus &amp; Aula</th>
+                      <th className="py-3 px-4 text-center font-semibold">Estado</th>
+                      <th className="py-3 px-4 text-center font-semibold">Prioridad</th>
+                      <th className="py-3 px-4 font-semibold">Registro / Timestamp</th>
+                      <th className="py-3 px-4 text-right font-semibold">Comandos</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-container">
@@ -1241,40 +1225,45 @@ export default function App() {
 
                       return (
                         <tr key={item.id} className="hover:bg-surface-container-low transition">
-                          <td className="py-3 px-4 font-mono font-bold text-primary">{item.ticketCode}</td>
+                          <td className="py-3 px-4 whitespace-nowrap font-mono text-xs font-bold text-primary">{item.ticketCode}</td>
                           <td className="py-3 px-4">
-                            <div className="font-bold text-on-surface">{item.title}</div>
-                            <div className="text-on-surface-variant text-xs">{item.location || 'Campus UTP'}</div>
+                            <button onClick={() => handleOpenDetailModal(item)} className="block max-w-full truncate text-left font-headline-sm text-sm font-bold text-on-surface hover:text-primary transition">{item.title}</button>
+                            <div className="mt-0.5 truncate text-xs text-on-surface-variant">{item.description}</div>
                           </td>
                           <td className="py-3 px-4">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${catClass}`}>
-                              {item.category}
-                            </span>
+                            <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-on-surface"><span className="material-symbols-outlined text-sm text-outline">location_on</span>{item.location || 'Campus UTP'}</span>
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-4 text-center">
                             <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-surface-container text-on-surface-variant'}`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-outline'}`}></span>
                               {statusLabel(item.status)}
                             </span>
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-4 text-center">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold text-white ${item.priority === 'High' ? 'bg-primary' : item.priority === 'Medium' ? 'bg-amber-500' : 'bg-sky-600'}`}>
                               {priorityLabel(item.priority)}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-on-surface-variant text-xs max-w-xs truncate">{item.rejectionReason || '—'}</td>
+                          <td className="py-3 px-4 whitespace-nowrap font-mono text-[11px] text-on-surface-variant">
+                            <div className="font-semibold text-on-surface">{String(item.createdAt).split('T')[0]}</div>
+                            <div className="text-[10px] text-outline">{String(item.createdAt).split('T')[1]?.slice(0, 8) || ''}</div>
+                          </td>
                           <td className="py-3 px-4 text-right">
                             <div className="inline-flex items-center gap-1">
-                              <button onClick={() => handleOpenDetailModal(item)} className="p-1.5 rounded-lg text-tertiary hover:bg-tertiary/10" title="Ver Detalle">
+                              <button onClick={() => handleOpenDetailModal(item)} className="inline-flex items-center gap-1 rounded-lg border border-surface-container px-2.5 py-1.5 text-xs font-medium text-on-surface-variant hover:bg-surface-container-low hover:text-tertiary" title="Ver Detalle">
                                 <span className="material-symbols-outlined text-base">visibility</span>
+                                <span>Detalle</span>
                               </button>
                               {canEditIncident && (
-                                <button onClick={() => handleOpenPatchModal(item)} className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-500/10" title="Editar Estado y Prioridad">
+                                <button onClick={() => handleOpenPatchModal(item)} className="inline-flex items-center gap-1 rounded-lg border border-surface-container px-2.5 py-1.5 text-xs font-medium text-on-surface-variant hover:border-amber-200 hover:bg-amber-50 hover:text-amber-700" title="Editar Estado y Prioridad">
                                   <span className="material-symbols-outlined text-base">edit</span>
+                                  <span>Estado</span>
                                 </button>
                               )}
                               {canDeleteIncident && (
-                                <button onClick={() => handleDelete(item.id, item.ticketCode, item.title)} className="p-1.5 rounded-lg text-primary hover:bg-primary/10" title="Eliminar">
+                                <button onClick={() => handleDelete(item.id, item.ticketCode, item.title)} className="inline-flex items-center gap-1 rounded-lg border border-surface-container px-2.5 py-1.5 text-xs font-medium text-on-surface-variant hover:border-red-200 hover:bg-red-50 hover:text-primary" title="Eliminar">
                                   <span className="material-symbols-outlined text-base">delete</span>
+                                  <span>Eliminar</span>
                                 </button>
                               )}
                             </div>
